@@ -36,6 +36,7 @@ type Tree struct {
 	PhotoURL             string    `gorm:"column:image_url" json:"image_url"`
 	IPFSHash             string    `json:"ipfs_hash"`
 	BlockchainTokenID    string    `json:"blockchain_token_id"`
+	TransactionHash      string    `json:"transaction_hash"`
 	Status               string    `gorm:"default:'pending'" json:"status"` // pending_verification, verified, rejected
 	HealthStatus         string    `gorm:"default:'excellent'" json:"health_status"`
 	CarbonAbsorptionRate float64   `json:"carbon_absorption_rate"`
