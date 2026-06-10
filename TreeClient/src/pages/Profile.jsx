@@ -1,226 +1,243 @@
-import React from "react";
-import { Award, Shield, Leaf } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { 
+    Award, Shield, Leaf, Calendar, Wallet as WalletIcon, 
+    User as UserIcon, TrendingUp, TrendingDown, Scissors,
+    RefreshCcw, ShieldAlert, FileText, Download, Activity, AlertTriangle, Zap, ArrowUpRight
+} from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
+import { Badge } from "@/components/ui/Badge";
+import { motion } from "framer-motion";
+import { 
+    getEcoTokenBalance, 
+    getCarbonCreditBalance, 
+    getEcoTreeBalance, 
+    isSepoliaNetwork, 
+    switchToSepolia,
+    CONTRACT_ADDRESSES
+} from "../utils/web3Service";
+import { Button } from "@/components/ui/Button";
 
-// Custom Tree Icon (optional)
-const TreePine = ({ className }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 2L4 8l8 6 8-6-8-6zm0 0v20"
-    />
-  </svg>
+const ImpactMetric = ({ label, value, subLabel, icon: Icon, color }) => (
+    <div className="bg-slate-50/50 border border-slate-100 p-6 rounded-3xl group hover:bg-white hover:shadow-xl transition-all duration-500">
+        <div className={`w-12 h-12 rounded-2xl bg-${color}-100 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+            <Icon className={`w-6 h-6 text-${color}-600`} />
+        </div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+        <p className="text-3xl font-black text-slate-800">{value}</p>
+        <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">{subLabel}</p>
+    </div>
 );
 
 const Profile = () => {
-  // Example data — you can replace these with real blockchain or API values
-  const user = {
-    name: "",
-    email: "",
-    wallet: " ",
-    role: "",
-    joinDate: "",
-  };
+  const { user } = useAuth();
+  const [onSepolia, setOnSepolia] = useState(true);
+  const [web3Data, setWeb3Data] = useState({ 
+    ecoBalance: "0.00", 
+    carbonBalance: "0.00", 
+    nftCount: "0" 
+  });
 
-  const stats = {
-    treesPlanted: 3,
-    verifiedTrees: 2,
-    carbonOffset: 509,
-    nftsOwned: 1,
-  };
+  const { data: carbonData } = useQuery({
+    queryKey: ['carbon-credits-profile'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits`);
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    const fetchWeb3Data = async () => {
+      if (!user?.wallet_address) return;
+      const isSep = await isSepoliaNetwork();
+      setOnSepolia(isSep);
+      if (isSep) {
+        try {
+          const [eco, carbon, nfts] = await Promise.all([
+            getEcoTokenBalance(user.wallet_address),
+            getCarbonCreditBalance(user.wallet_address),
+            getEcoTreeBalance(user.wallet_address)
+          ]);
+          setWeb3Data({ ecoBalance: eco, carbonBalance: carbon, nftCount: nfts });
+        } catch (err) {
+          console.error("Profile Web3 fetch failed:", err);
+        }
+      }
+    };
+    fetchWeb3Data();
+    const inv = setInterval(fetchWeb3Data, 20000);
+    return () => clearInterval(inv);
+  }, [user?.wallet_address]);
+
+  const stats = carbonData || {};
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 py-8">
-      <div className="max-w-7xl mx-auto px-4">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-green-700">
-            My Profile
-          </h1>
-          <p className="text-gray-600">
-            View your eco-achievements and impact details
-          </p>
+    <div className="min-h-screen bg-white pb-24">
+      {/* Network Warning Bar */}
+      {!onSepolia && (
+        <div className="bg-amber-500 text-white py-2 px-10 flex items-center justify-between text-xs font-black uppercase tracking-widest">
+            <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                MetaMask is not on Sepolia. Real-time assets are hidden.
+            </div>
+            <button onClick={() => switchToSepolia()} className="underline hover:text-slate-900 transition-colors">
+                Switch Network
+            </button>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Profile Card */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="text-center">
-              <div className="w-40 h-40 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full mx-auto mb-6 flex items-center justify-center shadow-lg">
-                <span className="text-7xl font-bold text-white">P</span>
-              </div>
-
-              <h2 className="text-3xl font-bold mb-2 text-gray-800">
-                {user.name}
-              </h2>
-              <p className="text-gray-600 mb-4">{user.email}</p>
-
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-full text-sm font-semibold mb-6">
-                <Leaf className="w-4 h-4" />
-                {user.role}
-              </div>
-
-              <div className="bg-green-50 rounded-xl p-4 mb-4">
-                <p className="text-sm text-gray-600 mb-1">Wallet</p>
-                <p className="font-mono text-sm text-gray-800">
-                  {user.wallet}
-                </p>
-              </div>
-
-              <div className="bg-green-50 rounded-xl p-4 mb-6">
-                <p className="text-sm text-gray-600 mb-1">Member Since</p>
-                <p className="font-semibold text-gray-800">
-                  {user.joinDate}
-                </p>
-              </div>
-
-              <button className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg">
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-                Edit Profile
-              </button>
-            </div>
+      {/* Dynamic Header with Wave Pattern */}
+      <div className="bg-slate-900 h-64 relative overflow-hidden flex items-end px-10 pb-10">
+          <div className="absolute top-0 right-0 p-10 opacity-10">
+              <Leaf className="w-64 h-64 text-white" />
           </div>
-
-          {/* Right Side Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Impact Stats */}
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <h3 className="text-2xl font-bold mb-6 flex items-center gap-3 text-gray-800">
-                <Award className="w-8 h-8 text-green-600" />
-                Your Impact
-              </h3>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-green-50 rounded-2xl p-6 text-center">
-                  <TreePine className="w-10 h-10 text-green-600 mx-auto mb-3" />
-                  <p className="text-5xl font-bold text-green-600 mb-1">
-                    {stats.treesPlanted}
-                  </p>
-                  <p className="text-sm text-gray-600">Trees Planted</p>
-                </div>
-
-                <div className="bg-blue-50 rounded-2xl p-6 text-center">
-                  <Shield className="w-10 h-10 text-blue-600 mx-auto mb-3" />
-                  <p className="text-5xl font-bold text-blue-600 mb-1">
-                    {stats.verifiedTrees}
-                  </p>
-                  <p className="text-sm text-gray-600">Verified</p>
-                </div>
-
-                <div className="bg-green-50 rounded-2xl p-6 text-center">
-                  <Leaf className="w-10 h-10 text-green-600 mx-auto mb-3" />
-                  <p className="text-5xl font-bold text-green-600 mb-1">
-                    {stats.carbonOffset}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    kg CO₂ Offset
-                  </p>
-                </div>
-
-                <div className="bg-purple-50 rounded-2xl p-6 text-center">
-                  <Award className="w-10 h-10 text-purple-600 mx-auto mb-3" />
-                  <p className="text-5xl font-bold text-purple-600 mb-1">
-                    {stats.nftsOwned}
-                  </p>
-                  <p className="text-sm text-gray-600">NFTs Owned</p>
-                </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-8 relative z-10"
+          >
+              <div className="w-32 h-32 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-[2.5rem] flex items-center justify-center text-5xl font-black text-white shadow-2xl border-4 border-slate-900">
+                  {user?.full_name?.[0] || 'E'}
               </div>
-            </div>
-
-            {/* Environmental Certificate */}
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <h3 className="text-2xl font-bold mb-6 text-gray-800">
-                Environmental Impact Certificate
-              </h3>
-
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-8">
-                <div className="text-center mb-8">
-                  <div className="inline-block p-4 bg-white rounded-full shadow-lg mb-4">
-                    <Award className="w-16 h-16 text-green-600" />
+              <div>
+                  <div className="flex items-center gap-3 mb-1">
+                      <h1 className="text-4xl font-black text-white">{user?.full_name || 'Eco Warrior'}</h1>
+                      <Badge className="bg-emerald-500 text-[10px]">{user?.role?.toUpperCase()}</Badge>
                   </div>
-                  <h4 className="text-3xl font-bold text-gray-900 mb-2">
-                    Certificate of Environmental Conservation
-                  </h4>
-                  <p className="text-gray-700 text-lg">
-                    Recognizing your contribution to a greener India
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-slate-400 font-mono text-sm">{user?.wallet_address}</p>
+                    <a 
+                      href={`${import.meta.env.VITE_EXPLORER_URL}/address/${user?.wallet_address}`}
+                      target="_blank"
+                      className="text-emerald-500 hover:text-emerald-400 transition-colors"
+                    >
+                      <ArrowUpRight className="w-4 h-4" />
+                    </a>
+                  </div>
+              </div>
+          </motion.div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-10 mt-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          
+          {/* Main Accounting Stats */}
+          <div className="lg:col-span-2 space-y-10">
+            
+            <section>
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-emerald-500" />
+                        Environmental Statement
+                    </h3>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 rounded-xl text-white text-[10px] font-black uppercase">
+                        Score: {stats.sustainability_score?.toFixed(0) || 100}
+                    </div>
                 </div>
-
-                <div className="space-y-4 mb-8">
-                  <div className="flex justify-between items-center py-3 border-b border-green-200">
-                    <span className="text-gray-700 font-medium">
-                      Trees Planted:
-                    </span>
-                    <span className="text-2xl font-bold text-gray-900">
-                      {stats.treesPlanted}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center py-3 border-b border-green-200">
-                    <span className="text-gray-700 font-medium">
-                      Carbon Credits:
-                    </span>
-                    <span className="text-2xl font-bold text-gray-900">
-                      12 credits
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center py-3 border-b border-green-200">
-                    <span className="text-gray-700 font-medium">
-                      CO₂ Offset:
-                    </span>
-                    <span className="text-2xl font-bold text-gray-900">
-                      {(stats.carbonOffset / 1000).toFixed(1)} tons
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center py-3 border-b border-green-200">
-                    <span className="text-gray-700 font-medium">
-                      Verified Trees:
-                    </span>
-                    <span className="text-2xl font-bold text-gray-900">
-                      {stats.verifiedTrees}
-                    </span>
-                  </div>
-                </div>
-
-                <button className="w-full bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg transition-all">
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <ImpactMetric 
+                        label="NFT Assets" 
+                        value={onSepolia ? web3Data.nftCount : "0"} 
+                        subLabel="Verified in biosphere" 
+                        icon={Leaf} 
+                        color="emerald" 
                     />
-                  </svg>
-                  Download Certificate
+                    <ImpactMetric 
+                        label="ECO Balance" 
+                        value={onSepolia ? `${parseFloat(web3Data.ecoBalance).toFixed(2)}` : "0.00"} 
+                        subLabel="Verified Reward" 
+                        icon={Zap} 
+                        color="blue" 
+                    />
+                    <ImpactMetric 
+                        label="Carbon Credits" 
+                        value={onSepolia ? `${parseFloat(web3Data.carbonBalance).toFixed(2)}` : "0.00"} 
+                        subLabel="Verified Offset" 
+                        icon={TrendingUp} 
+                        color="teal" 
+                    />
+                </div>
+            </section>
+
+            <section className="bg-slate-900 rounded-[3rem] p-10 text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10">
+                    <ShieldAlert className="w-32 h-32 text-rose-500" />
+                </div>
+                <div className="relative z-10">
+                    <h3 className="text-2xl font-black mb-2">Accountability Audit</h3>
+                    <p className="text-slate-400 text-sm mb-8">Summary of environmental loss and required compensation actions.</p>
+                    
+                    <div className="grid md:grid-cols-3 gap-10">
+                        <div>
+                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Tree Loss</p>
+                            <p className="text-4xl font-black">{stats.cut_trees || 0}</p>
+                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 mt-2">
+                                <Scissors className="w-3 h-3" /> SANCTIONED CUTTING
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Replaced</p>
+                            <p className="text-4xl font-black">{stats.replacement_trees || 0}</p>
+                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 mt-2">
+                                <RefreshCcw className="w-3 h-3" /> RESTORATION LOGS
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">Environmental Debt</p>
+                            <p className="text-4xl font-black text-amber-500">{(stats.environmental_debt || 0).toFixed(2)}t</p>
+                            <div className={`flex items-center gap-1 text-[10px] font-black mt-2 ${stats.compensation_required ? 'text-rose-500 animate-pulse' : 'text-slate-500'}`}>
+                                <ShieldAlert className="w-3 h-3" /> {stats.compensation_required ? 'ACTION REQUIRED' : 'NO DEBT DETECTED'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+          </div>
+
+          {/* Sidebar / Certificate */}
+          <div className="space-y-10">
+            <div className="bg-slate-50 border border-slate-100 rounded-[3rem] p-10">
+                <div className="flex flex-col items-center text-center mb-8">
+                    <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-6 border border-slate-100">
+                        <Award className="w-10 h-10 text-emerald-500" />
+                    </div>
+                    <h4 className="text-xl font-black text-slate-800 leading-tight">Environmental<br/>Impact NFT</h4>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase mt-2 tracking-widest">Digital Asset v4.1</p>
+                </div>
+                
+                <div className="space-y-4 mb-10">
+                    <div className="flex justify-between items-center text-xs font-bold py-3 border-b border-slate-200/50">
+                        <span className="text-slate-400 uppercase">Impact Class</span>
+                        <span className="text-slate-800">ALPHA PRIME</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold py-3 border-b border-slate-200/50">
+                        <span className="text-slate-400 uppercase">Audit Status</span>
+                        <span className="text-emerald-600">CERTIFIED</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold py-3">
+                        <span className="text-slate-400 uppercase">On-Chain ID</span>
+                        <span className="text-slate-800 font-mono text-[8px]">
+                            {CONTRACT_ADDRESSES.ecoChainTree?.slice(0, 10)}...
+                        </span>
+                    </div>
+                </div>
+
+                <button className="w-full bg-slate-900 text-white h-14 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all">
+                    <Download className="w-4 h-4" /> Download Certificate
                 </button>
-              </div>
+            </div>
+
+            <div className="p-8 bg-emerald-50 rounded-[2.5rem] border border-emerald-100">
+                <h5 className="font-black text-emerald-800 text-xs uppercase tracking-widest mb-4">Network Growth</h5>
+                <p className="text-emerald-700/70 text-xs leading-relaxed font-bold">
+                    You are in the top 5% of environmental custodians in the Maharashtra region. 
+                    Plant 2 more trees to reach Level 12.
+                </p>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -228,4 +245,3 @@ const Profile = () => {
 };
 
 export default Profile;
-
