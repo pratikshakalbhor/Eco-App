@@ -7,27 +7,34 @@ import { Button } from "../components/ui/Button";
 
 
 
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
+
 export default function Home() {
-  // Dummy static data (you can later replace this with blockchain data)
-  const trees = [
-    { id: 1, status: "verified" },
-    { id: 2, status: "credited" },
-    { id: 3, status: "pending" },
-  ];
+  const { data: globalStats } = useQuery({
+    queryKey: ['global-carbon-stats'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits`);
+      return data;
+    },
+  });
 
-  const credits = [
-    { id: 1, credits_amount: 12.5 },
-    { id: 2, credits_amount: 9.3 },
-  ];
+  const { data: trees = [] } = useQuery({
+    queryKey: ['trees-all-dashboard'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/all`);
+      return data;
+    },
+  });
 
-  const totalCredits = credits.reduce((sum, c) => sum + (c.credits_amount || 0), 0);
-  const verifiedTrees = trees.filter(t => t.status === "verified" || t.status === "credited").length;
+  const totalCredits = globalStats?.credits_earned || 0;
+  const verifiedTrees = trees.filter(t => t.status === "verified" || t.status === "approved").length;
 
   const stats = [
     { icon: TreeDeciduous, label: "Trees Planted", value: trees.length, color: "text-green-600" },
     { icon: Shield, label: "Trees Verified", value: verifiedTrees, color: "text-blue-600" },
     { icon: Award, label: "Carbon Credits", value: totalCredits.toFixed(1), color: "text-purple-600" },
-    { icon: Globe, label: "CO₂ Reduced (kg)", value: (totalCredits * 20).toFixed(0), color: "text-orange-600" }
+    { icon: Globe, label: "CO₂ Reduced (kg)", value: (globalStats?.co2_stats?.total_absorbed || 0).toFixed(0), color: "text-orange-600" }
   ];
 
   const features = [
