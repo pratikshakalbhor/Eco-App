@@ -3,8 +3,11 @@ package controllers
 import (
 	"ecochain-backend/config"
 	"ecochain-backend/models"
+	"fmt"
+	"log"
 	"net/http"
 	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -52,7 +55,10 @@ func RegisterTree(c *gin.Context) {
 		}
 	}
 
-	treeID := "ECO-" + uuid.New().String()[:8]
+	// Format: TREE-{timestamp}-{random4}
+	timestamp := time.Now().Unix()
+	randSuffix := uuid.New().String()[:4]
+	treeID := fmt.Sprintf("TREE-%d-%s", timestamp, randSuffix)
 
 	tree := models.Tree{
 		ID:                uuid.New(),
@@ -68,7 +74,7 @@ func RegisterTree(c *gin.Context) {
 		IPFSHash:          input.IPFSHash,
 		BlockchainTokenID: input.BlockchainTokenID,
 		TransactionHash:   input.TransactionHash,
-		Status:            "pending_verification",
+		Status:            "PENDING_VERIFICATION",
 		HealthStatus:      input.HealthStatus,
 		CarbonAbsorptionRate: rate,
 		PlantedAt:         plantedAt,
@@ -168,7 +174,11 @@ func VerifyTree(c *gin.Context) {
 	}
 
 	tx.Commit()
-	c.JSON(http.StatusOK, gin.H{"message": "Tree verification completed", "tree": tree})
+
+	// Trigger NFT mint log for future implementation
+	log.Printf("NFT_PENDING: Tree %s verified. Minting process initiated by %s", tree.TreeID, verifierID)
+
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Tree %s verified successfully", tree.TreeID), "tree": tree})
 }
 
 func GetTreeByID(c *gin.Context) {
@@ -205,4 +215,20 @@ func GetPendingTrees(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, trees)
+}
+
+func GetTreeStats(c *gin.Context) {
+	var total, pending, verified, rejected int64
+
+	config.DB.Model(&models.Tree{}).Count(&total)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "pending_verification").Count(&pending)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "verified").Count(&verified)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "rejected").Count(&rejected)
+
+	c.JSON(http.StatusOK, gin.H{
+		"total":    total,
+		"pending":  pending,
+		"verified": verified,
+		"rejected": rejected,
+	})
 }
