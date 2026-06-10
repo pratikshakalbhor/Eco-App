@@ -11,6 +11,7 @@ import Map from "./pages/Map";
 import Profile from "./pages/Profile";
 import VerificationQueue from "./pages/VerificationQueue";
 import Login from "./pages/Login";
+import TreeDetails from "./pages/TreeDetails";
 
 const queryClient = new QueryClient();
 
@@ -23,11 +24,10 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Admin/Verifier check could also be added here
 const RoleRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
-  if (!user || !allowedRoles.includes(user.role)) return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/login" replace />;
   return children;
 };
 
@@ -44,16 +44,16 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             }>
-              <Route index element={<Home />} />
-              <Route path="planttree" element={<PlantTree />} />
-              <Route path="mytree" element={<MyTree />} />
+              <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
+              <Route path="planttree" element={<PlantTree />} />
+              <Route path="mytrees" element={<MyTree />} />
+              <Route path="tree/:id" element={<TreeDetails />} />
               <Route path="map" element={<Map />} />
               <Route path="profile" element={<Profile />} />
               
-              {/* Verifier Routes */}
               <Route path="verification" element={
-                <RoleRoute allowedRoles={['verifier', 'admin']}>
+                <RoleRoute allowedRoles={['verifier', 'admin', 'user']}>
                   <VerificationQueue />
                 </RoleRoute>
               } />
