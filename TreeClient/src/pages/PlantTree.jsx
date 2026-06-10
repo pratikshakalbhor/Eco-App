@@ -15,7 +15,7 @@ import { uploadToIPFS } from "../utils/ipfsService";
 
 const COMMON_SPECIES = [
   "Neem", "Mango", "Banyan", "Peepal", "Ashoka",
-  "Jackfruit", "Coconut", "Mahogany", "Teak", "Banyan",
+  "Jackfruit", "Coconut", "Mahogany", "Teak",
   "Sal", "Gulmohar", "Oak", "Pine", "Eucalyptus", "Bamboo"
 ];
 
