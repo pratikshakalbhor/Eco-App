@@ -33,8 +33,8 @@ func GetUserCarbonCredits(c *gin.Context) {
 		return
 	}
 
-	var totalBalance, creditsEarned, creditsLost, environmentalDebt float64
-	var activeTrees, cutTrees, replacementTrees int
+	var totalBalance, creditsEarned, creditsLost float64
+	var activeTrees int
 	var totalCO2Absorption, totalOxygenGen float64
 
 	for _, credit := range credits {
@@ -55,36 +55,16 @@ func GetUserCarbonCredits(c *gin.Context) {
 			// Oxygen gen roughly 1.5x CO2 absorption by mass (simplistic environmental model)
 			totalOxygenGen += tree.CarbonAbsorptionRate * years * 1.5
 		}
-		if tree.IsCut {
-			cutTrees++
-			if !tree.ImpactCompensated {
-				// Debt calculation: Penalty for cutting (e.g. 5x the tree's annual capacity)
-				environmentalDebt += tree.CarbonAbsorptionRate * 5
-			}
-		}
-		if tree.ReplacementTreeID != nil {
-			replacementTrees++
-		}
 	}
 
-	// Sustainability Score: 100 base, -10 per uncompensated cut tree, +2 per replacement
-	sustainabilityScore := 100.0 - (float64(cutTrees-replacementTrees) * 15.0)
-	if sustainabilityScore > 100 {
-		sustainabilityScore = 100
-	}
-	if sustainabilityScore < 0 {
-		sustainabilityScore = 0
-	}
+	// Sustainability Score: 100 base
+	sustainabilityScore := 100.0
 
 	c.JSON(http.StatusOK, gin.H{
 		"carbon_balance":         totalBalance,
 		"credits_earned":         creditsEarned,
 		"credits_lost":           creditsLost,
-		"environmental_debt":     environmentalDebt,
-		"compensation_required": environmentalDebt > 0,
 		"active_trees":           activeTrees,
-		"cut_trees":              cutTrees,
-		"replacement_trees":      replacementTrees,
 		"co2_stats": gin.H{
 			"total_absorbed": totalCO2Absorption,
 			"avg_rate":       totalCO2Absorption / (float64(activeTrees) + 0.1),
