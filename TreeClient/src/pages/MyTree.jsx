@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TreePine, Search, Filter, Plus, 
   Leaf, Activity, MapPin, Award, 
-  Wind, ShieldCheck, Clock, AlertCircle,
+  Wind, ShieldCheck, Clock, AlertCircle, Calendar,
   ExternalLink, LayoutGrid, List,
   ChevronRight, ArrowUpRight, TrendingUp, Sprout
 } from 'lucide-react';
@@ -15,9 +15,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
 const STATUS_CONFIG = {
-  pending_verification:  { color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Clock },
-  verified: { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShieldCheck },
-  rejected: { color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', icon: AlertCircle },
+  PENDING_VERIFICATION:  { color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Clock },
+  VERIFIED: { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShieldCheck },
+  REJECTED: { color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', icon: AlertCircle },
 };
 
 export default function RedesignedMyTrees() {
@@ -36,8 +36,8 @@ export default function RedesignedMyTrees() {
   });
 
   const stats = useMemo(() => {
-    const verified = trees.filter(t => t.status === 'verified').length;
-    const pending = trees.filter(t => t.status === 'pending_verification').length;
+    const verified = trees.filter(t => t.status === 'VERIFIED').length;
+    const pending = trees.filter(t => t.status === 'PENDING_VERIFICATION').length;
     const total = trees.length;
 
     return {
@@ -99,8 +99,8 @@ export default function RedesignedMyTrees() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <div className="hidden md:flex items-center gap-2 bg-slate-50 p-1 rounded-xl">
-                    {['all', 'pending_verification', 'verified', 'rejected'].map(f => (
+                 <div className="hidden md:flex items-center gap-2 bg-slate-50 p-1 rounded-xl">
+                    {['all', 'PENDING_VERIFICATION', 'VERIFIED', 'REJECTED'].map(f => (
                         <button
                             key={f}
                             onClick={() => setActiveFilter(f)}
