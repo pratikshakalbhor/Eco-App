@@ -97,7 +97,15 @@ const SectionHeader = ({ icon: Icon, title, subtitle, delay = 0 }) => (
 );
 
 export default function EcoChainDashboard() {
-  const { data: trees = [], isLoading } = useQuery({
+  const { data: stats = { total: 0, pending: 0, verified: 0, rejected: 0 }, isLoading: isStatsLoading } = useQuery({
+    queryKey: ['tree-stats'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/stats`);
+      return data;
+    },
+  });
+
+  const { data: trees = [], isLoading: isTreesLoading } = useQuery({
     queryKey: ['dashboard-trees'],
     queryFn: async () => {
       const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees`);
@@ -105,35 +113,26 @@ export default function EcoChainDashboard() {
     },
   });
 
-  const stats = useMemo(() => {
-    const total = trees.length;
-    const pending = trees.filter(t => t.status === 'pending_verification').length;
-    const verified = trees.filter(t => t.status === 'verified').length;
-    const rejected = trees.filter(t => t.status === 'rejected').length;
-
-    return { total, pending, verified, rejected };
+  const recentActivities = useMemo(() => {
+    return Array.isArray(trees) ? [...trees]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 6)
+      .map(t => ({
+        id: t.id,
+        type: t.status === 'VERIFIED' ? 'verify' : t.status === 'REJECTED' ? 'reject' : 'plant',
+        label: t.status === 'VERIFIED' ? `Tree #${t.tree_id} Verified` : t.status === 'REJECTED' ? `Tree #${t.tree_id} Rejected` : `New Tree Registered`,
+        time: t.updated_at || t.created_at,
+        species: t.species
+      })) : [];
   }, [trees]);
+
+  if (isStatsLoading || isTreesLoading) return <div className="min-h-screen flex items-center justify-center bg-emerald-50"><Activity className="w-10 h-10 text-emerald-500 animate-pulse" /></div>;
 
   const pieData = [
     { name: 'Pending', value: stats.pending },
     { name: 'Verified', value: stats.verified },
     { name: 'Rejected', value: stats.rejected },
   ].filter(d => d.value > 0);
-
-  const recentActivities = useMemo(() => {
-    return [...trees]
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, 6)
-      .map(t => ({
-        id: t.id,
-        type: t.status === 'verified' ? 'verify' : t.status === 'rejected' ? 'reject' : 'plant',
-        label: t.status === 'verified' ? `Tree #${t.tree_id} Verified` : t.status === 'rejected' ? `Tree #${t.tree_id} Rejected` : `New Tree Registered`,
-        time: t.updated_at || t.created_at,
-        species: t.species
-      }));
-  }, [trees]);
-
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-emerald-50"><Activity className="w-10 h-10 text-emerald-500 animate-pulse" /></div>;
 
   return (
     <div className="min-h-screen bg-[#f3f8f4] py-8 px-6 lg:px-10">
