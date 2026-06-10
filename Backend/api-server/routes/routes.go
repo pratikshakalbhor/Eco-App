@@ -29,6 +29,7 @@ func SetupRoutes(r *gin.Engine) {
 			// Tree Lifecycle Routes
 			protected.POST("/trees", controllers.RegisterTree)
 			protected.GET("/trees/my", controllers.GetMyTrees)
+			protected.GET("/trees/stats", controllers.GetTreeStats)
 			protected.GET("/trees/:id", controllers.GetTreeByID)
 			
 			// Verifier routes
