@@ -17,14 +17,14 @@ import { verifyTreeOnChain } from '../utils/web3Service';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AUDIT_STATUSES = [
-  { id: 'pending_verification',  label: 'Pending Queue',  icon: Clock,       color: 'amber' },
-  { id: 'verified', label: 'Verified Trees', icon: CheckCircle2, color: 'emerald' },
-  { id: 'rejected', label: 'Rejected / Void', icon: Ban,          color: 'rose'    },
+  { id: 'PENDING_VERIFICATION',  label: 'Pending Queue',  icon: Clock,       color: 'amber' },
+  { id: 'VERIFIED', label: 'Verified Trees', icon: CheckCircle2, color: 'emerald' },
+  { id: 'REJECTED', label: 'Rejected / Void', icon: Ban,          color: 'rose'    },
 ];
 
 export default function UnifiedVerificationHub() {
   const queryClient = useQueryClient();
-  const [activeStatus, setActiveStatus] = useState('pending_verification');
+  const [activeStatus, setActiveStatus] = useState('PENDING_VERIFICATION');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAsset, setSelectedAsset] = useState(null);
 
@@ -38,10 +38,8 @@ export default function UnifiedVerificationHub() {
   });
 
   const verifyTreeMutation = useMutation({
-    mutationFn: async ({ id, status, blockchainId }) => {
-      // In production, you might call blockchain verification here
-      // if (status === 'VERIFIED' && blockchainId) { ... }
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/trees/${id}/verify`, { status });
+    mutationFn: async ({ id, status, notes }) => {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/trees/${id}/verify`, { status, notes });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['verification-trees']);
@@ -61,11 +59,11 @@ export default function UnifiedVerificationHub() {
 
   const getStatusBadge = (status) => {
     const config = {
-      pending_verification: 'bg-amber-100 text-amber-700 border-amber-200',
-      verified: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      rejected: 'bg-rose-100 text-rose-700 border-rose-200',
+      PENDING_VERIFICATION: 'bg-amber-100 text-amber-700 border-amber-200',
+      VERIFIED: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      REJECTED: 'bg-rose-100 text-rose-700 border-rose-200',
     };
-    return <Badge className={`uppercase text-[9px] font-black tracking-widest ${config[status] || config.pending_verification}`}>{status.replace('_', ' ')}</Badge>;
+    return <Badge className={`uppercase text-[9px] font-black tracking-widest ${config[status] || config.PENDING_VERIFICATION}`}>{status.replace('_', ' ')}</Badge>;
   };
 
   if (treesLoading) {
@@ -96,9 +94,9 @@ export default function UnifiedVerificationHub() {
            </div>
 
            <div className="flex items-center gap-6">
-              <AuditSummaryStat label="Pending" value={trees.filter(t=>t.status==='pending_verification').length} icon={Clock} color="amber" />
+              <AuditSummaryStat label="Pending" value={trees.filter(t=>t.status==='PENDING_VERIFICATION').length} icon={Clock} color="amber" />
               <div className="h-12 w-px bg-slate-100" />
-              <AuditSummaryStat label="Verified" value={trees.filter(t=>t.status==='verified').length} icon={CheckCircle2} color="emerald" />
+              <AuditSummaryStat label="Verified" value={trees.filter(t=>t.status==='VERIFIED').length} icon={CheckCircle2} color="emerald" />
               <div className="h-12 w-px bg-slate-100" />
               <AuditSummaryStat label="Integrity" value="99.9%" icon={Zap} color="sky" />
            </div>
@@ -210,7 +208,7 @@ export default function UnifiedVerificationHub() {
                                             Details
                                         </Button>
                                         
-                                        {activeStatus === 'pending_verification' && (
+                                        {activeStatus === 'PENDING_VERIFICATION' && (
                                             <div className="flex gap-2">
                                                 <button 
                                                     onClick={() => verifyTreeMutation.mutate({id: item.id, status: 'VERIFIED'})}
@@ -309,7 +307,7 @@ export default function UnifiedVerificationHub() {
                                     <DetailBox label="Owner Wallet" value={selectedAsset.owner_wallet?.slice(0, 10) + '...'} icon={Users} />
                                 </div>
 
-                                {selectedAsset.status === 'pending_verification' && (
+                                {selectedAsset.status === 'PENDING_VERIFICATION' && (
                                     <div className="pt-10 border-t border-slate-100 flex flex-col sm:flex-row gap-4">
                                         <Button 
                                             onClick={() => verifyTreeMutation.mutate({id: selectedAsset.id, status: 'VERIFIED'})}
