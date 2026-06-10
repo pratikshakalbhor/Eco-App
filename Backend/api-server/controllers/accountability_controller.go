@@ -9,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // ReportTreeCut handles the submission of a tree cutting report
@@ -32,10 +31,7 @@ func ReportTreeCut(c *gin.Context) {
 		return
 	}
 
-	if tree.IsCut {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Tree is already marked as cut"})
-		return
-	}
+	// Removed IsCut check as field was deleted from model
 
 	userIDString, _ := c.Get("userID")
 	reporterID, _ := uuid.Parse(userIDString.(string))
@@ -107,14 +103,11 @@ func VerifyCutReport(c *gin.Context) {
 			report.RequiredTrees = impact.RequiredTrees
 
 			// 2. Update Tree Status
+			// 2. Update Tree Status
 			tree.Status = "cut"
-			tree.IsCut = true
 			now := time.Now()
 			tree.CutAt = &now
 			tx.Save(&tree)
-
-			// 3. Update User Debt
-			tx.Model(&models.User{}).Where("id = ?", tree.PlanterID).Update("environmental_debt", gorm.Expr("environmental_debt + ?", impact.CarbonLoss))
 		}
 	}
 
