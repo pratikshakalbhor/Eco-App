@@ -44,8 +44,7 @@ type Tree struct {
 	Age                  int       `json:"age"`
 	VerifiedBy           *uuid.UUID `gorm:"type:uuid" json:"verified_by"`
 	VerifiedAt           *time.Time `json:"verified_at"`
-	IsCut                bool      `gorm:"default:false" json:"is_cut"`
-	CutAt                *time.Time `json:"cut_at"`
+	ContractAddress      string    `json:"contract_address"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 	TreeCutReport         *TreeCutReport `gorm:"foreignKey:TreeID" json:"tree_cut_report"`
