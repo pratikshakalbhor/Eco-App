@@ -16,18 +16,29 @@ export const AuthProvider = ({ children }) => {
         throw new Error("No wallet connected. Please ensure MetaMask is installed and unlocked.");
       }
 
-      // 2. Get Nonce from Backend
-      const { data: { nonce } } = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/nonce?address=${wallet.address}`);
+      // Normalise address to lowercase — must match backend storage
+      const address = wallet.address.toLowerCase();
+      console.log('[Auth] Step 1 - Wallet connected:', address);
 
-      // 3. Sign Nonce
+      // 2. Get Nonce from Backend
+      const { data: { nonce } } = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/auth/nonce?address=${address}`
+      );
+      console.log('[Auth] Step 2 - Nonce received:', nonce);
+
+      // 3. Sign message — ethers.js signMessage() automatically applies EIP-191 prefix
       const message = `EcoChain Auth Nonce: ${nonce}`;
+      console.log('[Auth] Step 3 - Signing message:', message);
       const signature = await signMessage(message);
+      console.log('[Auth] Step 4 - Signature:', signature);
 
       // 4. Verify on Backend
+      console.log('[Auth] Step 5 - Sending verify request...');
       const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/verify`, {
-        address: wallet.address,
+        address,
         signature
       });
+      console.log('[Auth] Step 6 - Auth success, user:', data.user);
 
       // 5. Store Token and User
       localStorage.setItem('eco_token', data.token);
