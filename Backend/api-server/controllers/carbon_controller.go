@@ -4,12 +4,13 @@ import (
 	"ecochain-backend/config"
 	"ecochain-backend/models"
 	"net/http"
+	"time"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
-// Species-based carbon absorption coefficients (kg/year)
-var absorptionRates = map[string]float64{
+// AbsorptionRates Species-based carbon absorption coefficients (kg/year)
+var AbsorptionRates = map[string]float64{
 	"mango":  22.0,
 	"neem":   18.5,
 	"oak":    25.0,
@@ -21,20 +22,86 @@ func GetUserCarbonCredits(c *gin.Context) {
 	userID, _ := uuid.Parse(userIDString.(string))
 
 	var credits []models.CarbonCredit
-	if err := config.DB.Where("user_id = ?", userID).Find(&credits).Error; err != nil {
+	if err := config.DB.Where("user_id = ?", userID).Order("created_at desc").Find(&credits).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch credits"})
 		return
 	}
 
-	var total float64
-	for _, c := range credits {
-		total += c.Amount
+	var trees []models.Tree
+	if err := config.DB.Where("planter_id = ?", userID).Find(&trees).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch trees"})
+		return
+	}
+
+	var totalBalance, creditsEarned, creditsLost, environmentalDebt float64
+	var activeTrees, cutTrees, replacementTrees int
+	var totalCO2Absorption, totalOxygenGen float64
+
+	for _, credit := range credits {
+		totalBalance += credit.Amount
+		if credit.Amount > 0 {
+			creditsEarned += credit.Amount
+		} else {
+			creditsLost += MathAbs(credit.Amount)
+		}
+	}
+
+	for _, tree := range trees {
+		if tree.Status == "verified" {
+			activeTrees++
+			// Calculation approximation: CO2 absorbed since planting
+			years := time.Since(tree.PlantedAt).Hours() / 24 / 365
+			totalCO2Absorption += tree.CarbonAbsorptionRate * years
+			// Oxygen gen roughly 1.5x CO2 absorption by mass (simplistic environmental model)
+			totalOxygenGen += tree.CarbonAbsorptionRate * years * 1.5
+		}
+		if tree.IsCut {
+			cutTrees++
+			if !tree.ImpactCompensated {
+				// Debt calculation: Penalty for cutting (e.g. 5x the tree's annual capacity)
+				environmentalDebt += tree.CarbonAbsorptionRate * 5
+			}
+		}
+		if tree.ReplacementTreeID != nil {
+			replacementTrees++
+		}
+	}
+
+	// Sustainability Score: 100 base, -10 per uncompensated cut tree, +2 per replacement
+	sustainabilityScore := 100.0 - (float64(cutTrees-replacementTrees) * 15.0)
+	if sustainabilityScore > 100 {
+		sustainabilityScore = 100
+	}
+	if sustainabilityScore < 0 {
+		sustainabilityScore = 0
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"total_credits": total,
-		"history":       credits,
+		"carbon_balance":         totalBalance,
+		"credits_earned":         creditsEarned,
+		"credits_lost":           creditsLost,
+		"environmental_debt":     environmentalDebt,
+		"compensation_required": environmentalDebt > 0,
+		"active_trees":           activeTrees,
+		"cut_trees":              cutTrees,
+		"replacement_trees":      replacementTrees,
+		"co2_stats": gin.H{
+			"total_absorbed": totalCO2Absorption,
+			"avg_rate":       totalCO2Absorption / (float64(activeTrees) + 0.1),
+		},
+		"oxygen_stats": gin.H{
+			"total_generated": totalOxygenGen,
+		},
+		"sustainability_score": sustainabilityScore,
+		"history":              credits,
 	})
+}
+
+func MathAbs(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func MintCreditsForTree(treeID uuid.UUID, amount float64, txHash string) error {
