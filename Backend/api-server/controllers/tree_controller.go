@@ -22,6 +22,8 @@ func RegisterTree(c *gin.Context) {
 		PlantedAt         string  `json:"planting_date"`
 		Age               int     `json:"age"`
 		HealthStatus      string  `json:"health_status"`
+		BlockchainTokenID string  `json:"blockchain_token_id"`
+		TransactionHash   string  `json:"transaction_hash"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -64,6 +66,8 @@ func RegisterTree(c *gin.Context) {
 		Location:          input.Location,
 		PhotoURL:          input.PhotoURL,
 		IPFSHash:          input.IPFSHash,
+		BlockchainTokenID: input.BlockchainTokenID,
+		TransactionHash:   input.TransactionHash,
 		Status:            "pending_verification",
 		HealthStatus:      input.HealthStatus,
 		CarbonAbsorptionRate: rate,
