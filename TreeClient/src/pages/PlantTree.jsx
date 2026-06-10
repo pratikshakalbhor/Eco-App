@@ -123,19 +123,6 @@ export default function RedesignedPlantTree() {
 
     setSubmitting(true);
     try {
-      // 1. Connect Wallet & Change to Sepolia if needed
-      await connectWallet();
-      const onSepolia = await isSepoliaNetwork();
-      if (!onSepolia) throw new Error("Please switch to Sepolia Network in MetaMask.");
-
-      // 2. Blockchain Registration
-      const walletAddress = (await window.ethereum.request({ method: "eth_accounts" }))[0];
-      const ipfsHash = formData.ipfs_hash || `ipfs-fallback-${Date.now()}`;
-      
-      const chainRecord = await registerTreeOnChain(walletAddress, ipfsHash, formData.photo_url);
-      setBlockchainData(chainRecord);
-
-      // 3. Backend Storage
       const payload = {
         species: formData.species,
         nickname: formData.tree_name,
@@ -144,18 +131,22 @@ export default function RedesignedPlantTree() {
         longitude: parseFloat(formData.longitude),
         image_url: formData.photo_url,
         ipfs_hash: formData.ipfs_hash,
-        blockchain_token_id: String(chainRecord.tokenId),
-        transaction_hash: chainRecord.txHash,
         planting_date: formData.planted_date,
         age: parseInt(formData.estimated_age),
         health_status: formData.health_status,
       };
 
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/trees`, payload);
+      const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/trees`, payload);
       setSuccess(true);
+      setBlockchainData({ tree_id: data.tree.tree_id });
+      
+      // Auto redirect after 3 seconds or on button click
+      setTimeout(() => {
+        navigate('/mytrees');
+      }, 3000);
     } catch (err) {
       console.error(err);
-      setError(err.message || "Registration failed. Check your wallet connection.");
+      setError(err.response?.data?.error || "Registration failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
