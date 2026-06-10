@@ -47,6 +47,7 @@ function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="planttree" element={<PlantTree />} />
+              <Route path="mytree" element={<Navigate to="/mytrees" replace />} />
               <Route path="mytrees" element={<MyTree />} />
               <Route path="tree/:id" element={<TreeDetails />} />
               <Route path="map" element={<Map />} />
