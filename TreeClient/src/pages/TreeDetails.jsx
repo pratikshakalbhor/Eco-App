@@ -12,9 +12,9 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 
 const STATUS_CONFIG = {
-  pending_verification: { label: 'In Verification Queue', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Clock },
-  verified: { label: 'Verified & Registered', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShieldCheck },
-  rejected: { label: 'Rejected / Invalid', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', icon: AlertCircle },
+  PENDING_VERIFICATION: { label: 'In Verification Queue', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Clock },
+  VERIFIED: { label: 'Verified & Registered', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShieldCheck },
+  REJECTED: { label: 'Rejected / Invalid', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', icon: AlertCircle },
 };
 
 export default function TreeDetails() {
@@ -45,7 +45,7 @@ export default function TreeDetails() {
     </div>
   );
 
-  const status = STATUS_CONFIG[tree.status] || STATUS_CONFIG.pending_verification;
+  const status = STATUS_CONFIG[tree.status] || STATUS_CONFIG.PENDING_VERIFICATION;
 
   return (
     <div className="min-h-screen bg-[#F8FAF9] py-12 px-6 lg:px-12">
@@ -79,7 +79,7 @@ export default function TreeDetails() {
                             <span className="text-lg font-black">{status.label}</span>
                         </div>
                     </div>
-                    {tree.status === 'verified' && (
+                    {tree.status === 'VERIFIED' && (
                         <div className="bg-emerald-500 text-white p-3 rounded-2xl shadow-lg shadow-emerald-200">
                             <ShieldCheck className="w-6 h-6" />
                         </div>
@@ -142,14 +142,14 @@ export default function TreeDetails() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Carbon Credits</p>
-                                <p className="text-2xl font-black">{tree.status === 'verified' ? '1.0 ECO' : 'Pending Verification'}</p>
+                                <p className="text-2xl font-black">{tree.status === 'VERIFIED' ? '1.0 ECO' : 'Pending Verification'}</p>
                             </div>
                             <Wind className="w-10 h-10 text-emerald-400 opacity-40 animate-pulse" />
                         </div>
                     </div>
                 </div>
 
-                {tree.status === 'verified' && (
+                {tree.status === 'VERIFIED' && (
                     <div className="p-8 bg-white rounded-[2.5rem] border border-emerald-50 shadow-sm">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                             <ShieldCheck className="w-4 h-4 text-emerald-600" />
