@@ -113,6 +113,19 @@ export default function EcoChainDashboard() {
     },
   });
 
+  const { data: debts = [] } = useQuery({
+    queryKey: ['my-debts-summary'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/debt`);
+      return Array.isArray(data) ? data : [];
+    },
+  });
+
+  const activeDebtCount = useMemo(() => debts.filter(d => d.status !== 'CLEARED').length, [debts]);
+  const totalTreesNeeded = useMemo(() => 
+    debts.filter(d => d.status !== 'CLEARED').reduce((sum, d) => sum + (d.trees_needed - d.trees_verified), 0)
+  , [debts]);
+
   const recentActivities = useMemo(() => {
     return Array.isArray(trees) ? [...trees]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -137,6 +150,32 @@ export default function EcoChainDashboard() {
   return (
     <div className="min-h-screen bg-[#f3f8f4] py-8 px-6 lg:px-10">
       <div className="max-w-[1440px] mx-auto space-y-8">
+
+        {activeDebtCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-rose-50 border-2 border-rose-100 rounded-3xl p-6 flex items-center justify-between shadow-xl shadow-rose-900/5 group"
+          >
+            <div className="flex items-center gap-5">
+              <div className="bg-rose-600 text-white p-3 rounded-2xl animate-bounce group-hover:animate-none transition-all">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1">Environmental Debt Warning</p>
+                 <h2 className="text-xl font-black text-slate-900 leading-none">You have {activeDebtCount} active replantation debt{activeDebtCount > 1 ? 's' : ''}</h2>
+                 <p className="text-sm font-medium text-slate-500 mt-1">Total obligation: <strong>{totalTreesNeeded} replacement trees</strong> needed to restore full carbon credits.</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => window.location.href = '/debt'}
+              className="bg-slate-900 text-white px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all flex items-center gap-2"
+            >
+              Resolve Debt
+              <ArrowUpRight className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
 
         <motion.div
           initial={{ opacity: 0, y: -20 }}
