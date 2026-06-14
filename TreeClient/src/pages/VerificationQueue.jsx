@@ -7,7 +7,7 @@ import {
   Search, Filter, Globe, History, Users,
   Calculator, Zap, Layers, ChevronRight,
   ClipboardCheck, Clock, FileSearch, Trash2,
-  Sprout, Ban, CheckCircle2, Award, ExternalLink
+  Sprout, Ban, CheckCircle2, Award, ExternalLink, Axe, History
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
@@ -17,9 +17,10 @@ import { verifyTreeOnChain } from '../utils/web3Service';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AUDIT_STATUSES = [
-  { id: 'PENDING_VERIFICATION',  label: 'Pending Queue',  icon: Clock,       color: 'amber' },
-  { id: 'VERIFIED', label: 'Verified Trees', icon: CheckCircle2, color: 'emerald' },
-  { id: 'REJECTED', label: 'Rejected / Void', icon: Ban,          color: 'rose'    },
+  { id: 'PENDING_VERIFICATION',  label: 'Pending Queue',  icon: Clock,         color: 'amber' },
+  { id: 'VERIFIED',              label: 'Verified Trees', icon: CheckCircle2,  color: 'emerald' },
+  { id: 'REJECTED',              label: 'Rejected / Void', icon: Ban,           color: 'rose'    },
+  { id: 'CUT_REPORTS',           label: 'Cut Reports',    icon: Axe,           color: 'orange'  },
 ];
 
 export default function UnifiedVerificationHub() {
@@ -37,6 +38,16 @@ export default function UnifiedVerificationHub() {
     },
   });
 
+  // Fetch Cut Reports
+  const { data: cutReports = [], isLoading: reportsLoading } = useQuery({
+    queryKey: ['cut-reports'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/cut-reports?status=PENDING`);
+      return data;
+    },
+    enabled: activeStatus === 'CUT_REPORTS'
+  });
+
   const verifyTreeMutation = useMutation({
     mutationFn: async ({ id, status, notes }) => {
       await axios.post(`${import.meta.env.VITE_API_URL}/api/trees/${id}/verify`, { status, notes });
@@ -47,7 +58,28 @@ export default function UnifiedVerificationHub() {
     }
   });
 
+  const confirmCutMutation = useMutation({
+    mutationFn: async ({ treeId, approved }) => {
+      const endpoint = approved ? 'confirm' : 'reject';
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/trees/${treeId}/cut/${endpoint}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['cut-reports']);
+      queryClient.invalidateQueries(['verification-trees']);
+      setSelectedAsset(null);
+    }
+  });
+
   const displayedItems = useMemo(() => {
+    if (activeStatus === 'CUT_REPORTS') {
+        return cutReports.filter(r => {
+            const searchMatch = (r.tree_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                (r.owner_wallet || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                (r.reason || '').toLowerCase().includes(searchTerm.toLowerCase());
+            return searchMatch;
+        });
+    }
+
     return trees.filter(t => {
       const statusMatch = t.status === activeStatus;
       const searchMatch = (t.species || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -55,13 +87,15 @@ export default function UnifiedVerificationHub() {
                           (t.owner_wallet || '').toLowerCase().includes(searchTerm.toLowerCase());
       return statusMatch && searchMatch;
     });
-  }, [activeStatus, trees, searchTerm]);
+  }, [activeStatus, trees, cutReports, searchTerm]);
 
   const getStatusBadge = (status) => {
     const config = {
       PENDING_VERIFICATION: 'bg-amber-100 text-amber-700 border-amber-200',
       VERIFIED: 'bg-emerald-100 text-emerald-700 border-emerald-200',
       REJECTED: 'bg-rose-100 text-rose-700 border-rose-200',
+      CUT_REPORTED: 'bg-orange-100 text-orange-700 border-orange-200',
+      CUT_CONFIRMED: 'bg-rose-100 text-rose-700 border-rose-200',
     };
     return <Badge className={`uppercase text-[9px] font-black tracking-widest ${config[status] || config.PENDING_VERIFICATION}`}>{status.replace('_', ' ')}</Badge>;
   };
@@ -98,7 +132,7 @@ export default function UnifiedVerificationHub() {
               <div className="h-12 w-px bg-slate-100" />
               <AuditSummaryStat label="Verified" value={trees.filter(t=>t.status==='VERIFIED').length} icon={CheckCircle2} color="emerald" />
               <div className="h-12 w-px bg-slate-100" />
-              <AuditSummaryStat label="Integrity" value="99.9%" icon={Zap} color="sky" />
+              <AuditSummaryStat label="Cut Queue" value={cutReports.length} icon={Axe} color="orange" />
            </div>
         </div>
 
@@ -151,27 +185,39 @@ export default function UnifiedVerificationHub() {
                                 transition={{ delay: i * 0.03 }}
                                 className="group hover:bg-emerald-50/30 transition-all border-b border-slate-50 last:border-0"
                             >
-                                <TableCell className="py-6 pl-12">
+                                 <TableCell className="py-6 pl-12">
                                     <div className="flex items-center gap-5">
                                         <div className="relative shrink-0">
-                                            <img src={item.image_url || '/placeholder-tree.jpg'} className="w-16 h-16 rounded-2xl object-cover shadow-inner" />
+                                            <img src={(activeStatus === 'CUT_REPORTS' ? item.evidence_image_url : item.image_url) || '/placeholder-tree.jpg'} className="w-16 h-16 rounded-2xl object-cover shadow-inner" />
                                         </div>
                                         <div>
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tree ID</p>
-                                            <p className="text-xs font-mono font-black text-slate-700">{item.tree_id || 'Pending ID'}</p>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">ID / Ref</p>
+                                            <p className="text-xs font-mono font-black text-slate-700">{item.tree_id || 'Pending'}</p>
                                             <div className="mt-1 flex items-center gap-2">
-                                                {getStatusBadge(item.status)}
+                                                {getStatusBadge(activeStatus === 'CUT_REPORTS' ? 'CUT_REPORTED' : item.status)}
                                             </div>
                                         </div>
                                     </div>
                                 </TableCell>
                                 <TableCell>
                                     <div>
-                                        <p className="text-sm font-black text-slate-900 uppercase">{item.species}</p>
-                                        <div className="flex items-center gap-1.5 text-slate-400 mt-1">
-                                            <MapPin className="w-3 h-3" />
-                                            <span className="text-[10px] font-bold uppercase truncate max-w-[150px]">{item.location}</span>
-                                        </div>
+                                        {activeStatus === 'CUT_REPORTS' ? (
+                                            <>
+                                                <p className="text-sm font-black text-slate-900 uppercase">Reason: {item.reason}</p>
+                                                <div className="flex items-center gap-1.5 text-slate-400 mt-1">
+                                                    <Calendar className="w-3 h-3" />
+                                                    <span className="text-[10px] font-bold uppercase truncate max-w-[150px]">Cut: {new Date(item.cut_date).toLocaleDateString()}</span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p className="text-sm font-black text-slate-900 uppercase">{item.species}</p>
+                                                <div className="flex items-center gap-1.5 text-slate-400 mt-1">
+                                                    <MapPin className="w-3 h-3" />
+                                                    <span className="text-[10px] font-bold uppercase truncate max-w-[150px]">{item.location}</span>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </TableCell>
                                 <TableCell>
@@ -186,14 +232,23 @@ export default function UnifiedVerificationHub() {
                                 </TableCell>
                                 <TableCell>
                                     <div className="space-y-1.5">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar className="w-3 h-3 text-emerald-500" />
-                                            <span className="text-[10px] font-bold text-slate-600 uppercase">Planted: <strong>{new Date(item.planting_date).toLocaleDateString()}</strong></span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Activity className="w-3 h-3 text-sky-400" />
-                                            <span className="text-[10px] font-bold text-slate-600 uppercase">Health: <strong>{item.health_status}</strong></span>
-                                        </div>
+                                        {activeStatus === 'CUT_REPORTS' ? (
+                                            <div className="flex items-center gap-2">
+                                                <History className="w-3 h-3 text-orange-500" />
+                                                <span className="text-[10px] font-bold text-slate-600 uppercase italic">"{item.description || 'No description'}"</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center gap-2">
+                                                    <Calendar className="w-3 h-3 text-emerald-500" />
+                                                    <span className="text-[10px] font-bold text-slate-600 uppercase">Planted: <strong>{new Date(item.planting_date).toLocaleDateString()}</strong></span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Activity className="w-3 h-3 text-sky-400" />
+                                                    <span className="text-[10px] font-bold text-slate-600 uppercase">Health: <strong>{item.health_status}</strong></span>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </TableCell>
                                 <TableCell className="pr-12 text-right">
@@ -202,7 +257,7 @@ export default function UnifiedVerificationHub() {
                                             size="sm" 
                                             variant="outline" 
                                             className="h-10 px-5 rounded-xl border-slate-200 text-slate-600 text-[10px] font-black uppercase hover:bg-slate-50 transition-all gap-2"
-                                            onClick={() => setSelectedAsset(item)}
+                                            onClick={() => setSelectedAsset(activeStatus === 'CUT_REPORTS' ? { ...item.tree, cut_report: item } : item)}
                                         >
                                             <FileSearch className="w-4 h-4" />
                                             Details
@@ -223,6 +278,25 @@ export default function UnifiedVerificationHub() {
                                                     title="Reject"
                                                 >
                                                     <X className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {activeStatus === 'CUT_REPORTS' && (
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => confirmCutMutation.mutate({treeId: item.tree_id, approved: true})}
+                                                    className="w-10 h-10 bg-orange-100 text-orange-700 rounded-xl flex items-center justify-center hover:bg-orange-600 hover:text-white transition-all shadow-sm"
+                                                    title="Confirm Cut"
+                                                >
+                                                    <Check className="w-5 h-5" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => confirmCutMutation.mutate({treeId: item.tree_id, approved: false})}
+                                                    className="w-10 h-10 bg-slate-100 text-slate-700 rounded-xl flex items-center justify-center hover:bg-slate-600 hover:text-white transition-all shadow-sm"
+                                                    title="Reject Report"
+                                                >
+                                                    <XCircle className="w-5 h-5" />
                                                 </button>
                                             </div>
                                         )}
@@ -283,9 +357,22 @@ export default function UnifiedVerificationHub() {
                     <div className="p-12">
                         <div className="grid lg:grid-cols-5 gap-12">
                             <div className="lg:col-span-2 space-y-8">
-                                <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl group">
-                                    <img src={selectedAsset.image_url || '/placeholder-tree.jpg'} className="w-full aspect-[4/5] object-cover" />
+                                <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl group border-4 border-white">
+                                    <img src={(selectedAsset.cut_report ? selectedAsset.cut_report.evidence_image_url : selectedAsset.image_url) || '/placeholder-tree.jpg'} className="w-full aspect-[4/5] object-cover" />
+                                    {selectedAsset.cut_report && (
+                                        <div className="absolute top-4 right-4 bg-orange-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl">
+                                            Cut Evidence
+                                        </div>
+                                    )}
                                 </div>
+                                {selectedAsset.cut_report && (
+                                    <div className="relative rounded-[2rem] overflow-hidden shadow-lg group border-2 border-slate-100 opacity-80">
+                                        <img src={selectedAsset.image_url || '/placeholder-tree.jpg'} className="w-full aspect-video object-cover" />
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                            <p className="text-white text-[10px] font-black uppercase tracking-widest">Original Record</p>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="mt-6 p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-center gap-4">
                                     <Globe className="w-10 h-10 text-emerald-600 shrink-0" />
                                     <div className="min-w-0">
@@ -321,6 +408,24 @@ export default function UnifiedVerificationHub() {
                                             onClick={() => verifyTreeMutation.mutate({id: selectedAsset.id, status: 'REJECTED'})}
                                         >
                                             Reject Asset
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {selectedAsset.cut_report && selectedAsset.cut_report.status === 'PENDING' && (
+                                    <div className="pt-10 border-t border-slate-100 flex flex-col sm:flex-row gap-4">
+                                        <Button 
+                                            onClick={() => confirmCutMutation.mutate({treeId: selectedAsset.tree_id, approved: true})}
+                                            className="flex-1 h-16 bg-orange-600 hover:bg-orange-700 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-orange-200"
+                                        >
+                                            Confirm Cut
+                                        </Button>
+                                        <Button 
+                                            variant="outline"
+                                            className="flex-1 h-16 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] border-slate-200"
+                                            onClick={() => confirmCutMutation.mutate({treeId: selectedAsset.tree_id, approved: false})}
+                                        >
+                                            Reject Report
                                         </Button>
                                     </div>
                                 )}
