@@ -49,7 +49,19 @@ func InitDB() {
 
 	// Auto-Migrate Models
 	fmt.Println("Running Auto-Migration...")
-	if err := database.AutoMigrate(&models.User{}, &models.Tree{}, &models.CarbonCredit{}, &models.Verification{}, &models.TreeCutReport{}, &models.CompensationRecord{}); err != nil {
+	if err := database.AutoMigrate(
+		&models.User{},
+		&models.Tree{},
+		&models.CarbonCredit{},
+		&models.Verification{},
+		&models.CutReport{},
+		&models.EnvironmentalLoss{},
+		&models.ReplantationDebt{},
+		&models.ReplacementTree{},
+		&models.CompensationRecord{},
+		&models.ActivityLog{},
+		&models.RestorationCertificate{},
+	); err != nil {
 		log.Printf("Warning: AutoMigrate error: %v", err)
 	}
 
