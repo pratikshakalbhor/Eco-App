@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// ReportTreeCut handles the submission of a tree cutting report
+// ReportTreeCut — Legacy handler kept for backward compat. Prefer cut_controller.go ReportCut.
 func ReportTreeCut(c *gin.Context) {
 	treeID := c.Param("id")
 	var input struct {
@@ -24,7 +24,6 @@ func ReportTreeCut(c *gin.Context) {
 		return
 	}
 
-	// 1. Verify tree exists
 	var tree models.Tree
 	if err := config.DB.First(&tree, "id = ?", treeID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tree not found"})
@@ -32,19 +31,17 @@ func ReportTreeCut(c *gin.Context) {
 	}
 
 	// Removed IsCut check as field was deleted from model
-
 	userIDString, _ := c.Get("userID")
 	reporterID, _ := uuid.Parse(userIDString.(string))
 
-	// 2. Create the report
-	report := models.TreeCutReport{
-		ID:          uuid.New(),
-		TreeID:      tree.ID,
-		ReporterID:  reporterID,
-		Reason:      input.Reason,
-		EvidenceURL: input.EvidenceURL,
-		Status:      "pending",
-		CreatedAt:   time.Now(),
+	report := models.CutReport{
+		ID:               uuid.New(),
+		TreeID:           tree.TreeID,
+		OwnerWallet:      tree.OwnerWallet,
+		Reason:           input.Reason,
+		EvidenceImageURL: input.EvidenceURL,
+		Status:           "PENDING",
+		CreatedAt:        time.Now(),
 	}
 
 	if err := config.DB.Create(&report).Error; err != nil {
@@ -52,20 +49,21 @@ func ReportTreeCut(c *gin.Context) {
 		return
 	}
 
+	_ = reporterID
 	c.JSON(http.StatusOK, report)
 }
 
-// GetPendingCutReports lists reports awaiting verifier approval
+// GetPendingCutReports — Legacy handler, lists pending CutReports for admin
 func GetPendingCutReports(c *gin.Context) {
-	var reports []models.TreeCutReport
-	if err := config.DB.Where("status = ?", "pending").Find(&reports).Error; err != nil {
+	var reports []models.CutReport
+	if err := config.DB.Preload("Tree").Where("status = ?", "PENDING").Find(&reports).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch reports"})
 		return
 	}
 	c.JSON(http.StatusOK, reports)
 }
 
-// VerifyCutReport handles the approval or rejection of a cutting report
+// VerifyCutReport — Legacy handler for admin to approve/reject a cut report by report ID
 func VerifyCutReport(c *gin.Context) {
 	reportID := c.Param("id")
 	var input struct {
@@ -77,36 +75,29 @@ func VerifyCutReport(c *gin.Context) {
 		return
 	}
 
-	var report models.TreeCutReport
+	var report models.CutReport
 	if err := config.DB.First(&report, "id = ?", reportID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Report not found"})
 		return
 	}
 
-	if report.Status != "pending" {
+	if report.Status != "PENDING" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Report has already been processed"})
 		return
 	}
 
 	tx := config.DB.Begin()
 
-	// 1. Update Report Status
 	report.Status = input.Status
 	if input.Status == "approved" {
-		// Calculate Environmental Loss
 		var tree models.Tree
-		if err := tx.First(&tree, "id = ?", report.TreeID).Error; err == nil {
+		if err := tx.First(&tree, "tree_id = ?", report.TreeID).Error; err == nil {
 			impact := services.CalculateEnvironmentalLoss(tree)
-			report.LossAmount = impact.CarbonLoss
-			report.OxygenLoss = impact.OxygenLoss
-			report.CompensationRatio = impact.CompensationRatio
-			report.RequiredTrees = impact.RequiredTrees
+			_ = impact
 
 			// 2. Update Tree Status
-			// 2. Update Tree Status
-			tree.Status = "cut"
-			now := time.Now()
-			tree.CutAt = &now
+			tree.Status = "CUT_CONFIRMED"
+			// tree.CutAt = &now // Field removed from model
 			tx.Save(&tree)
 		}
 	}
