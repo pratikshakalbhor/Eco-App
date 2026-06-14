@@ -12,6 +12,10 @@ import Profile from "./pages/Profile";
 import VerificationQueue from "./pages/VerificationQueue";
 import Login from "./pages/Login";
 import TreeDetails from "./pages/TreeDetails";
+import ReportCut from "./pages/ReportCut";
+import Debt from "./pages/Debt";
+import Environment from "./pages/Environment";
+import Certificate from "./pages/Certificate";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +54,10 @@ function App() {
               <Route path="mytree" element={<Navigate to="/mytrees" replace />} />
               <Route path="mytrees" element={<MyTree />} />
               <Route path="tree/:id" element={<TreeDetails />} />
+              <Route path="tree/:id/report-cut" element={<ReportCut />} />
+              <Route path="debt" element={<Debt />} />
+              <Route path="certificate/:id" element={<Certificate />} />
+              <Route path="environment" element={<Environment />} />
               <Route path="map" element={<Map />} />
               <Route path="profile" element={<Profile />} />
               
