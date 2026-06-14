@@ -88,12 +88,14 @@ func RegisterTree(c *gin.Context) {
 		return
 	}
 
+	LogActivity("TREE_PLANTED", tree.TreeID, nil, user.WalletAddress, fmt.Sprintf("Planted a new %s tree at %s", tree.Species, tree.Location))
+
 	c.JSON(http.StatusOK, gin.H{"message": "Tree successfully registered", "tree": tree})
 }
 
 func GetAllTrees(c *gin.Context) {
 	var trees []models.Tree
-	if err := config.DB.Preload("Planter").Preload("TreeCutReport").Preload("Verifications").Find(&trees).Error; err != nil {
+	if err := config.DB.Preload("Planter").Preload("CutReport").Preload("Verifications").Find(&trees).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch trees"})
 		return
 	}
@@ -171,6 +173,42 @@ func VerifyTree(c *gin.Context) {
 			CreatedAt: time.Now(),
 		}
 		tx.Create(&credit)
+
+		LogActivity("TREE_VERIFIED", tree.TreeID, nil, "", fmt.Sprintf("Tree %s verified by administrator", tree.TreeID))
+
+		// Check if this tree is a replacement for a debt
+		if tree.IsReplacement && tree.ReplantedDebtID != nil {
+			var debt models.ReplantationDebt
+			if err := tx.First(&debt, "id = ?", tree.ReplantedDebtID).Error; err == nil {
+				// Recalculate verified count
+				var verifiedCount int64
+				tx.Model(&models.ReplacementTree{}).
+					Joins("JOIN trees ON trees.tree_id = replacement_trees.tree_id").
+					Where("replacement_trees.debt_id = ? AND trees.status = ?", debt.ID, "VERIFIED").
+					Count(&verifiedCount)
+
+				updates := map[string]interface{}{
+					"trees_verified": int(verifiedCount),
+					"updated_at":     time.Now(),
+				}
+
+				if int(verifiedCount) >= debt.TreesNeeded {
+					updates["status"] = "CLEARED"
+					now := time.Now()
+					updates["cleared_at"] = &now
+					
+					// Unfreeze credits
+					tx.Model(&models.CarbonCredit{}).
+						Where("tree_id = (SELECT id FROM trees WHERE tree_id = ?)", debt.OriginalTreeID).
+						Update("tradeable", true)
+						
+					// Log Debt Clear
+					LogActivity("DEBT_CLEARED", debt.OriginalTreeID, &debt.ID, debt.OwnerWallet, "Replantation debt cleared automatically after tree verification")
+				}
+
+				tx.Model(&debt).Updates(updates)
+			}
+		}
 	}
 
 	tx.Commit()
@@ -184,9 +222,9 @@ func VerifyTree(c *gin.Context) {
 func GetTreeByID(c *gin.Context) {
 	treeID := c.Param("id")
 	var tree models.Tree
-	if err := config.DB.Preload("Planter").Preload("TreeCutReport").Preload("Verifications").First(&tree, "id = ?", treeID).Error; err != nil {
+	if err := config.DB.Preload("Planter").Preload("CutReport").Preload("Verifications").First(&tree, "id = ?", treeID).Error; err != nil {
 		// Try searching by tree_id string if UUID fails
-		if errSearch := config.DB.Preload("Planter").Preload("TreeCutReport").Preload("Verifications").First(&tree, "tree_id = ?", treeID).Error; errSearch != nil {
+		if errSearch := config.DB.Preload("Planter").Preload("CutReport").Preload("Verifications").First(&tree, "tree_id = ?", treeID).Error; errSearch != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Tree not found"})
 			return
 		}
@@ -199,7 +237,7 @@ func GetMyTrees(c *gin.Context) {
 	userID, _ := uuid.Parse(userIDString.(string))
 
 	var trees []models.Tree
-	if err := config.DB.Preload("TreeCutReport").Where("planter_id = ?", userID).Find(&trees).Error; err != nil {
+	if err := config.DB.Preload("CutReport").Where("planter_id = ?", userID).Find(&trees).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch trees"})
 		return
 	}
@@ -209,7 +247,7 @@ func GetMyTrees(c *gin.Context) {
 
 func GetPendingTrees(c *gin.Context) {
 	var trees []models.Tree
-	if err := config.DB.Preload("Planter").Where("status = ?", "pending_verification").Find(&trees).Error; err != nil {
+	if err := config.DB.Preload("Planter").Where("status = ?", "PENDING_VERIFICATION").Find(&trees).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch pending trees"})
 		return
 	}
@@ -218,17 +256,25 @@ func GetPendingTrees(c *gin.Context) {
 }
 
 func GetTreeStats(c *gin.Context) {
-	var total, pending, verified, rejected int64
+	var total, pending, verified, rejected, cutReported, cutConfirmed, debtsActive, debtsCleared int64
 
 	config.DB.Model(&models.Tree{}).Count(&total)
-	config.DB.Model(&models.Tree{}).Where("status = ?", "pending_verification").Count(&pending)
-	config.DB.Model(&models.Tree{}).Where("status = ?", "verified").Count(&verified)
-	config.DB.Model(&models.Tree{}).Where("status = ?", "rejected").Count(&rejected)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "PENDING_VERIFICATION").Count(&pending)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "VERIFIED").Count(&verified)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "REJECTED").Count(&rejected)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "CUT_REPORTED").Count(&cutReported)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "CUT_CONFIRMED").Count(&cutConfirmed)
+	config.DB.Model(&models.ReplantationDebt{}).Where("status != ?", "CLEARED").Count(&debtsActive)
+	config.DB.Model(&models.ReplantationDebt{}).Where("status = ?", "CLEARED").Count(&debtsCleared)
 
 	c.JSON(http.StatusOK, gin.H{
-		"total":    total,
-		"pending":  pending,
-		"verified": verified,
-		"rejected": rejected,
+		"total":           total,
+		"pending":         pending,
+		"verified":        verified,
+		"rejected":        rejected,
+		"cut_reported":    cutReported,
+		"cut_confirmed":   cutConfirmed,
+		"debts_active":    debtsActive,
+		"debts_cleared":   debtsCleared,
 	})
 }
