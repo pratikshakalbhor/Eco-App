@@ -2,53 +2,64 @@ package models
 
 import (
 	"time"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type User struct {
-	ID            uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	WalletAddress string         `gorm:"unique;not null" json:"wallet_address"`
-	Nonce         string         `json:"-"`
-	FullName      string         `json:"full_name"`
-	AvatarURL     string         `json:"avatar_url"`
-	Role          string         `gorm:"default:'user'" json:"role"`
-	XPPoints      int            `gorm:"default:0" json:"xp_points"`
-	Level         int            `gorm:"default:1" json:"level"`
-	SustainabilityScore float64  `gorm:"default:100" json:"sustainability_score"`
-	CarbonBalance       float64  `gorm:"default:0" json:"carbon_balance"`
-	EnvironmentalDebt   float64  `gorm:"default:0" json:"environmental_debt"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
+	ID                  uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	WalletAddress       string    `gorm:"unique;not null" json:"wallet_address"`
+	Nonce               string    `json:"-"`
+	FullName            string    `json:"full_name"`
+	AvatarURL           string    `json:"avatar_url"`
+	Role                string    `gorm:"default:'user'" json:"role"`
+	XPPoints            int       `gorm:"default:0" json:"xp_points"`
+	Level               int       `gorm:"default:1" json:"level"`
+	SustainabilityScore float64   `gorm:"default:100" json:"sustainability_score"`
+	CarbonBalance       float64   `gorm:"default:0" json:"carbon_balance"`
+	EnvironmentalDebt   float64   `gorm:"default:0" json:"environmental_debt"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 type Tree struct {
-	ID                   uuid.UUID  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	TreeID               string    `gorm:"unique;not null" json:"tree_id"`
-	PlanterID            uuid.UUID  `json:"planter_id"`
-	Planter              User       `gorm:"foreignKey:PlanterID" json:"planter"`
-	Species              string     `json:"species"`
-	Nickname             string     `json:"nickname"`
-	OwnerWallet          string     `json:"owner_wallet"`
-	Latitude             float64    `json:"latitude"`
-	Longitude            float64    `json:"longitude"`
-	Location             string     `gorm:"column:location" json:"location"`
-	PhotoURL             string    `gorm:"column:image_url" json:"image_url"`
-	IPFSHash             string    `json:"ipfs_hash"`
-	BlockchainTokenID    string    `json:"blockchain_token_id"`
-	TransactionHash      string    `json:"transaction_hash"`
-	Status               string    `gorm:"default:'pending'" json:"status"` // pending_verification, verified, rejected
-	HealthStatus         string    `gorm:"default:'excellent'" json:"health_status"`
-	CarbonAbsorptionRate float64   `json:"carbon_absorption_rate"`
-	PlantedAt            time.Time `json:"planted_at"`
-	Age                  int       `json:"age"`
-	VerifiedBy           *uuid.UUID `gorm:"type:uuid" json:"verified_by"`
-	VerifiedAt           *time.Time `json:"verified_at"`
-	ContractAddress      string    `json:"contract_address"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
-	TreeCutReport         *TreeCutReport `gorm:"foreignKey:TreeID" json:"tree_cut_report"`
-	Verifications         []Verification `gorm:"foreignKey:TreeID" json:"verifications"`
+	ID    uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	TreeID string   `gorm:"unique;not null" json:"tree_id"`
+
+	PlanterID uuid.UUID `json:"planter_id"`
+	Planter   User      `gorm:"foreignKey:PlanterID" json:"planter"`
+
+	Species     string  `json:"species"`
+	Nickname    string  `json:"nickname"`
+	OwnerWallet string  `json:"owner_wallet"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Location    string  `gorm:"column:location" json:"location"`
+
+	PhotoURL          string `gorm:"column:image_url" json:"image_url"`
+	IPFSHash          string `json:"ipfs_hash"`
+	BlockchainTokenID string `json:"blockchain_token_id"`
+	TransactionHash   string `json:"transaction_hash"`
+	ContractAddress   string `json:"contract_address"`
+
+	// Status: PENDING_VERIFICATION | VERIFIED | REJECTED | CUT_REPORTED | CUT_CONFIRMED
+	Status               string  `gorm:"default:'PENDING_VERIFICATION'" json:"status"`
+	HealthStatus         string  `gorm:"default:'Healthy'" json:"health_status"`
+	CarbonAbsorptionRate float64 `json:"carbon_absorption_rate"`
+
+	PlantedAt  time.Time  `json:"planted_at"`
+	Age        int        `json:"age"`
+	VerifiedBy *uuid.UUID `gorm:"type:uuid" json:"verified_by"`
+	VerifiedAt *time.Time `json:"verified_at"`
+
+	// Replacement tracking
+	IsReplacement   bool       `gorm:"default:false" json:"is_replacement"`
+	ReplantedDebtID *uuid.UUID `gorm:"type:uuid" json:"replanted_debt_id"`
+
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+	Verifications []Verification `gorm:"foreignKey:TreeID" json:"verifications"`
 }
 
 type CarbonCredit struct {
@@ -56,41 +67,105 @@ type CarbonCredit struct {
 	UserID          uuid.UUID `json:"user_id"`
 	TreeID          uuid.UUID `json:"tree_id"`
 	Amount          float64   `json:"amount"` // Positive for earned, negative for lost
+	Tradeable       bool      `gorm:"default:true" json:"tradeable"`
 	TransactionHash string    `json:"transaction_hash"`
 	Type            string    `json:"type"` // earned, penalty, compensation
 	CreatedAt       time.Time `json:"created_at"`
 }
 
 type Verification struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	TreeID    uuid.UUID `json:"tree_id"`
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	TreeID     uuid.UUID `json:"tree_id"`
 	VerifierID uuid.UUID `json:"verifier_id"`
-	Status    string    `json:"status"` // approved, rejected, more_evidence
-	Type      string    `gorm:"default:'planting'" json:"type"` // planting, cutting, compensation
-	Notes     string    `json:"notes"`
-	CreatedAt time.Time `json:"created_at"`
+	Status     string    `json:"status"` // VERIFIED, REJECTED
+	Type       string    `gorm:"default:'planting'" json:"type"` // planting, cutting
+	Notes      string    `json:"notes"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
-type TreeCutReport struct {
-	ID                uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	TreeID            uuid.UUID `json:"tree_id"`
-	ReporterID        uuid.UUID `json:"reporter_id"`
-	Reason            string    `json:"reason"`
-	EvidenceURL       string    `json:"evidence_url"`
-	Status            string    `gorm:"default:'pending'" json:"status"` // pending, verified, rejected
-	LossAmount        float64   `json:"loss_amount"` // Carbon loss in kg
-	OxygenLoss        float64   `json:"oxygen_loss"` // Estimated O2 loss
-	CompensationRatio int       `gorm:"default:3" json:"compensation_ratio"` // e.g. 3 for 3:1
-	RequiredTrees     int       `json:"required_trees"`
-	CreatedAt         time.Time `json:"created_at"`
+// CutReport — submitted by tree owner when a verified tree is physically cut
+type CutReport struct {
+	ID               uuid.UUID  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	TreeID           string     `gorm:"not null" json:"tree_id"`
+	Tree             Tree       `gorm:"foreignKey:TreeID;references:TreeID" json:"tree"`
+	OwnerWallet      string     `gorm:"not null" json:"owner_wallet"`
+	Reason           string     `gorm:"not null" json:"reason"` // Storm / Construction / Disease / Other
+	CutDate          time.Time  `json:"cut_date"`
+	Description      string     `json:"description"`
+	EvidenceImageURL string     `json:"evidence_image_url"`
+	// Status: PENDING | CONFIRMED | REJECTED
+	Status      string     `gorm:"default:'PENDING'" json:"status"`
+	ConfirmedBy string     `json:"confirmed_by"`
+	ConfirmedAt *time.Time `json:"confirmed_at"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
+// EnvironmentalLoss — auto-calculated when admin confirms a cut
+type EnvironmentalLoss struct {
+	ID                     uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	TreeID                 string    `gorm:"not null" json:"tree_id"`
+	CutReportID            uuid.UUID `json:"cut_report_id"`
+	CO2LostKg              float64   `json:"co2_lost_kg"`
+	OxygenLostKg           float64   `json:"oxygen_lost_kg"`
+	CreditsLost            float64   `json:"credits_lost"`
+	ReplacementTreesNeeded int       `json:"replacement_trees_needed"`
+	CalculatedAt           time.Time `json:"calculated_at"`
+}
+
+// ReplantationDebt — tracks how many replacement trees must be planted
+type ReplantationDebt struct {
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	OriginalTreeID string    `gorm:"not null" json:"original_tree_id"`
+	OwnerWallet    string    `gorm:"not null" json:"owner_wallet"`
+	TreesNeeded    int       `gorm:"not null" json:"trees_needed"`
+	TreesPlanted   int       `gorm:"default:0" json:"trees_planted"`
+	TreesVerified  int       `gorm:"default:0" json:"trees_verified"`
+	// Status: PENDING | IN_PROGRESS | CLEARED
+	Status        string     `gorm:"default:'PENDING'" json:"status"`
+	CertificateID string     `json:"certificate_id"`
+	ClearedAt     *time.Time `json:"cleared_at"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+
+	ReplacementTrees []ReplacementTree `gorm:"foreignKey:DebtID" json:"replacement_trees"`
+}
+
+// ReplacementTree — links a newly planted tree to a replantation debt
+type ReplacementTree struct {
+	ID       uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	DebtID   uuid.UUID `gorm:"not null" json:"debt_id"`
+	TreeID   string    `gorm:"not null" json:"tree_id"`
+	LinkedAt time.Time `json:"linked_at"`
+}
+
+// CompensationRecord — legacy table, retained for DB compatibility
 type CompensationRecord struct {
 	ID                uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	CutTreeID         uuid.UUID `json:"cut_tree_id"`
 	ReplacementTreeID uuid.UUID `json:"replacement_tree_id"`
 	Status            string    `gorm:"default:'pending'" json:"status"`
 	CreatedAt         time.Time `json:"created_at"`
+}
+
+type RestorationCertificate struct {
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	CertificateID  string    `gorm:"unique;not null" json:"certificate_id"` // "CERT-2024-001"
+	DebtID         uuid.UUID `gorm:"not null" json:"debt_id"`
+	IssuedTo       string    `gorm:"not null" json:"issued_to"` // owner wallet
+	OriginalTreeID string    `gorm:"not null" json:"original_tree_id"`
+	CO2RestoredKg  float64   `json:"co2_restored_kg"`
+	CreditsRestored float64   `json:"credits_restored"`
+	IssuedAt       time.Time `json:"issued_at"`
+}
+
+type ActivityLog struct {
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	EventType   string    `json:"event_type"` // TREE_PLANTED/TREE_VERIFIED/TREE_CUT/DEBT_CLEARED/CERT_ISSUED
+	TreeID      string    `json:"tree_id"`
+	DebtID      *uuid.UUID `gorm:"type:uuid" json:"debt_id"`
+	Actor       string    `json:"actor"` // wallet address
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
