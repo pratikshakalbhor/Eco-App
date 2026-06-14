@@ -5,7 +5,7 @@ import axios from 'axios';
 import { 
   TreePine, MapPin, Calendar, Activity, 
   ShieldCheck, Clock, AlertCircle, ChevronLeft,
-  Globe, Award, User, Tag, Wind, Leaf
+  Globe, Award, User, Tag, Wind, Leaf, Axe, AlertTriangle, ArrowUpRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +15,8 @@ const STATUS_CONFIG = {
   PENDING_VERIFICATION: { label: 'In Verification Queue', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Clock },
   VERIFIED: { label: 'Verified & Registered', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShieldCheck },
   REJECTED: { label: 'Rejected / Invalid', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', icon: AlertCircle },
+  CUT_REPORTED: { label: 'Cut Reported (Awaiting Audit)', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', icon: Axe },
+  CUT_CONFIRMED: { label: 'Cut Confirmed (Voided)', color: 'text-rose-800', bg: 'bg-rose-100', border: 'border-rose-300', icon: AlertTriangle },
 };
 
 export default function TreeDetails() {
@@ -27,6 +29,15 @@ export default function TreeDetails() {
       const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/${id}`);
       return data;
     },
+  });
+
+  const { data: loss } = useQuery({
+    queryKey: ['tree-loss', id],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/${id}/loss`);
+      return data;
+    },
+    enabled: !!tree && (tree.status === 'CUT_CONFIRMED' || tree.status === 'CUT_REPORTED')
   });
 
   if (isLoading) return (
@@ -84,7 +95,24 @@ export default function TreeDetails() {
                             <ShieldCheck className="w-6 h-6" />
                         </div>
                     )}
+                    {(tree.status === 'CUT_REPORTED' || tree.status === 'CUT_CONFIRMED') && (
+                        <div className="bg-orange-500 text-white p-3 rounded-2xl shadow-lg shadow-orange-200">
+                            <Axe className="w-6 h-6" />
+                        </div>
+                    )}
                 </div>
+
+                {tree.status === 'CUT_REPORTED' && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 flex gap-4">
+                        <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
+                        <div>
+                            <p className="text-xs font-black text-amber-800 uppercase tracking-widest mb-1">Notice: Cut Reported</p>
+                            <p className="text-[11px] text-amber-700 leading-relaxed font-medium">
+                                This biological asset has been reported as cut. All associated carbon credits are <strong>frozen</strong> pending administrative verification of the report evidence.
+                            </p>
+                        </div>
+                    </div>
+                )}
             </motion.div>
 
             {/* Details Section */}
@@ -125,14 +153,18 @@ export default function TreeDetails() {
                         <div>
                             <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2">Sequestration</p>
                             <div className="flex items-end gap-2">
-                                <span className="text-4xl font-black tracking-tighter">21.8</span>
+                                <span className="text-4xl font-black tracking-tighter">
+                                    {(tree.status === 'CUT_CONFIRMED' || tree.status === 'REJECTED') ? '0.0' : '21.8'}
+                                </span>
                                 <span className="text-xs font-bold text-emerald-400 mb-1.5 uppercase">kg CO₂/y</span>
                             </div>
                         </div>
                         <div>
                             <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2">Oxygen Output</p>
                             <div className="flex items-end gap-2">
-                                <span className="text-4xl font-black tracking-tighter">100.4</span>
+                                <span className="text-4xl font-black tracking-tighter">
+                                    {(tree.status === 'CUT_CONFIRMED' || tree.status === 'REJECTED') ? '0.0' : '100.4'}
+                                </span>
                                 <span className="text-xs font-bold text-emerald-400 mb-1.5 uppercase">kg O₂/y</span>
                             </div>
                         </div>
@@ -142,12 +174,50 @@ export default function TreeDetails() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Carbon Credits</p>
-                                <p className="text-2xl font-black">{tree.status === 'VERIFIED' ? '1.0 ECO' : 'Pending Verification'}</p>
+                                <p className="text-2xl font-black">
+                                    {tree.status === 'VERIFIED' ? '1.0 ECO' : 
+                                     tree.status === 'CUT_REPORTED' ? 'FROZEN' :
+                                     tree.status === 'CUT_CONFIRMED' ? 'VOIDED' : 'Pending Verification'}
+                                </p>
                             </div>
                             <Wind className="w-10 h-10 text-emerald-400 opacity-40 animate-pulse" />
                         </div>
                     </div>
                 </div>
+
+                {loss && (
+                    <div className="bg-rose-50 border border-rose-100 rounded-[2.5rem] p-10 space-y-6">
+                         <div className="flex items-center gap-3">
+                            <div className="p-2 bg-rose-100 rounded-xl">
+                                <AlertTriangle className="w-5 h-5 text-rose-600" />
+                            </div>
+                            <h3 className="text-xl font-black text-rose-900">Environmental Loss Report</h3>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="text-center p-4 bg-white rounded-2xl border border-rose-100">
+                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">CO₂ Released</p>
+                                <p className="text-lg font-black text-rose-600">{loss.co2_lost_kg}kg</p>
+                            </div>
+                            <div className="text-center p-4 bg-white rounded-2xl border border-rose-100">
+                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">O₂ Lost</p>
+                                <p className="text-lg font-black text-rose-600">{loss.oxygen_lost_kg}kg</p>
+                            </div>
+                            <div className="text-center p-4 bg-white rounded-2xl border border-rose-100">
+                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Debt Created</p>
+                                <p className="text-lg font-black text-rose-600">{loss.replacement_trees_needed} Trees</p>
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={() => navigate('/debt')}
+                            className="w-full h-12 bg-rose-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+                        >
+                            View Replacement Debt
+                            <ArrowUpRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
 
                 {tree.status === 'VERIFIED' && (
                     <div className="p-8 bg-white rounded-[2.5rem] border border-emerald-50 shadow-sm">
