@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TreePine, Search, Filter, Plus, 
   Leaf, Activity, MapPin, Award, 
-  Wind, ShieldCheck, Clock, AlertCircle, Calendar,
+  Wind, ShieldCheck, Clock, AlertCircle, Calendar, Axe,
   ExternalLink, LayoutGrid, List,
   ChevronRight, ArrowUpRight, TrendingUp, Sprout
 } from 'lucide-react';
@@ -15,9 +15,11 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
 const STATUS_CONFIG = {
-  PENDING_VERIFICATION:  { color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Clock },
-  VERIFIED: { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShieldCheck },
-  REJECTED: { color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', icon: AlertCircle },
+  PENDING_VERIFICATION: { color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Clock },
+  VERIFIED:             { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShieldCheck },
+  REJECTED:             { color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', icon: AlertCircle },
+  CUT_REPORTED:         { color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', icon: Clock },
+  CUT_CONFIRMED:        { color: 'text-rose-800', bg: 'bg-rose-100', border: 'border-rose-300', icon: AlertCircle },
 };
 
 export default function RedesignedMyTrees() {
@@ -38,14 +40,9 @@ export default function RedesignedMyTrees() {
   const stats = useMemo(() => {
     const verified = trees.filter(t => t.status === 'VERIFIED').length;
     const pending = trees.filter(t => t.status === 'PENDING_VERIFICATION').length;
+    const cut = trees.filter(t => t.status === 'CUT_REPORTED' || t.status === 'CUT_CONFIRMED').length;
     const total = trees.length;
-
-    return {
-      total,
-      verified,
-      pending,
-      rejected: total - verified - pending
-    };
+    return { total, verified, pending, cut, rejected: total - verified - pending - cut };
   }, [trees]);
 
   const filteredTrees = useMemo(() => {
@@ -79,11 +76,12 @@ export default function RedesignedMyTrees() {
                 <p className="text-slate-500 mt-2 text-lg">Manage and monitor your verified biological assets.</p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-auto">
-                <MetricSmall label="Total Assets" value={stats.total} icon={TreePine} color="emerald" />
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full lg:w-auto">
+                <MetricSmall label="Total" value={stats.total} icon={TreePine} color="emerald" />
                 <MetricSmall label="Verified" value={stats.verified} icon={ShieldCheck} color="emerald" />
                 <MetricSmall label="Queue" value={stats.pending} icon={Clock} color="amber" />
                 <MetricSmall label="Voided" value={stats.rejected} icon={AlertCircle} color="rose" />
+                <MetricSmall label="Cut" value={stats.cut} icon={Axe} color="orange" />
             </div>
         </div>
 
@@ -100,7 +98,7 @@ export default function RedesignedMyTrees() {
                     />
                 </div>
                  <div className="hidden md:flex items-center gap-2 bg-slate-50 p-1 rounded-xl">
-                    {['all', 'PENDING_VERIFICATION', 'VERIFIED', 'REJECTED'].map(f => (
+                    {['all', 'PENDING_VERIFICATION', 'VERIFIED', 'REJECTED', 'CUT_REPORTED', 'CUT_CONFIRMED'].map(f => (
                         <button
                             key={f}
                             onClick={() => setActiveFilter(f)}
@@ -109,7 +107,7 @@ export default function RedesignedMyTrees() {
                                 ${activeFilter === f ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}
                             `}
                         >
-                            {f.replace('_', ' ')}
+                            {f === 'all' ? 'All' : f === 'CUT_REPORTED' ? '🟠 Cut Reported' : f === 'CUT_CONFIRMED' ? '🔴 Cut Confirmed' : f.replace('_', ' ')}
                         </button>
                     ))}
                 </div>
@@ -249,14 +247,27 @@ const PremiumTreeCard = ({ tree, index, onClick }) => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <ImpactMetric icon={Calendar} label="Planted" value={new Date(tree.planting_date).toLocaleDateString()} color="emerald" />
-                    <ImpactMetric icon={Award} label="Status" value={tree.status === 'verified' ? 'Active' : 'Pending'} color="amber" />
+                <div className="flex gap-3">
+                    <Button 
+                        className="flex-1 rounded-xl h-12 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all"
+                        onClick={onClick}
+                    >
+                        View Assessment
+                    </Button>
+                    
+                    {tree.status === 'VERIFIED' && (
+                        <Button 
+                            className="h-12 w-12 rounded-xl bg-orange-50 text-orange-600 border border-orange-100 hover:bg-orange-600 hover:text-white transition-all p-0"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.href = `/tree/${tree.tree_id}/report-cut`;
+                            }}
+                            title="Report Tree Cut"
+                        >
+                            <Axe className="w-5 h-5" />
+                        </Button>
+                    )}
                 </div>
-
-                <Button className="w-full rounded-xl h-12 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all">
-                    View Assessment
-                </Button>
             </div>
         </motion.div>
     );
@@ -316,6 +327,18 @@ const TreeListItem = ({ tree, onClick }) => {
             </div>
 
             <div className="flex items-center gap-3 pl-6">
+                {tree.status === 'VERIFIED' && (
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/tree/${tree.tree_id}/report-cut`;
+                        }}
+                        className="h-12 w-12 flex items-center justify-center rounded-2xl bg-orange-50 text-orange-600 border border-orange-100 hover:bg-orange-600 hover:text-white transition-all shadow-sm"
+                        title="Report Tree Cut"
+                    >
+                        <Axe className="w-5 h-5" />
+                    </button>
+                )}
                 <button className="h-12 w-12 flex items-center justify-center rounded-2xl bg-slate-900 text-white hover:bg-emerald-600 transition-all shadow-lg shadow-slate-200">
                     <ExternalLink className="w-5 h-5" />
                 </button>
