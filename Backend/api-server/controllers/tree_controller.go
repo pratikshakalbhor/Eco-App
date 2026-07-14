@@ -27,6 +27,8 @@ func RegisterTree(c *gin.Context) {
 		HealthStatus      string  `json:"health_status"`
 		BlockchainTokenID string  `json:"blockchain_token_id"`
 		TransactionHash   string  `json:"transaction_hash"`
+		IsReplacement     bool    `json:"is_replacement"`
+		ReplantedDebtID   string  `json:"replanted_debt_id"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -60,6 +62,13 @@ func RegisterTree(c *gin.Context) {
 	randSuffix := uuid.New().String()[:4]
 	treeID := fmt.Sprintf("TREE-%d-%s", timestamp, randSuffix)
 
+	var replantedDebtID *uuid.UUID
+	if input.ReplantedDebtID != "" {
+		if dID, err := uuid.Parse(input.ReplantedDebtID); err == nil {
+			replantedDebtID = &dID
+		}
+	}
+
 	tree := models.Tree{
 		ID:                uuid.New(),
 		TreeID:            treeID,
@@ -79,6 +88,8 @@ func RegisterTree(c *gin.Context) {
 		CarbonAbsorptionRate: rate,
 		PlantedAt:         plantedAt,
 		Age:               input.Age,
+		IsReplacement:     input.IsReplacement,
+		ReplantedDebtID:   replantedDebtID,
 		CreatedAt:         time.Now(),
 		UpdatedAt:         time.Now(),
 	}
@@ -88,9 +99,13 @@ func RegisterTree(c *gin.Context) {
 		return
 	}
 
-	LogActivity("TREE_PLANTED", tree.TreeID, nil, user.WalletAddress, fmt.Sprintf("Planted a new %s tree at %s", tree.Species, tree.Location))
+	// Log Activity
+	LogActivity("TREE_PLANTED", tree.TreeID, tree.ReplantedDebtID, user.WalletAddress, fmt.Sprintf("Planted a new %s tree (%s)", tree.Species, tree.TreeID))
 
-	c.JSON(http.StatusOK, gin.H{"message": "Tree successfully registered", "tree": tree})
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Tree registered successfully",
+		"tree":    tree,
+	})
 }
 
 func GetAllTrees(c *gin.Context) {
@@ -174,6 +189,12 @@ func VerifyTree(c *gin.Context) {
 		}
 		tx.Create(&credit)
 
+		// Update tree credits
+		tx.Model(&tree).Update("credits_available", 1.0)
+
+		// Record Credit Event in Ledger
+		RecordCreditEvent(tree.OwnerWallet, tree.TreeID, "EARNED", 1.0, 1.0, tree.ID.String())
+
 		LogActivity("TREE_VERIFIED", tree.TreeID, nil, "", fmt.Sprintf("Tree %s verified by administrator", tree.TreeID))
 
 		// Check if this tree is a replacement for a debt
@@ -204,6 +225,27 @@ func VerifyTree(c *gin.Context) {
 						
 					// Log Debt Clear
 					LogActivity("DEBT_CLEARED", debt.OriginalTreeID, &debt.ID, debt.OwnerWallet, "Replantation debt cleared automatically after tree verification")
+
+					// Generate Certificate
+					certID := fmt.Sprintf("CERT-%d-%s", time.Now().Unix(), uuid.New().String()[:4])
+					
+					var loss models.EnvironmentalLoss
+					tx.Where("tree_id = ?", debt.OriginalTreeID).First(&loss)
+
+					certificate := models.RestorationCertificate{
+						ID:             uuid.New(),
+						CertificateID:  certID,
+						DebtID:         debt.ID,
+						IssuedTo:       debt.OwnerWallet,
+						OriginalTreeID: debt.OriginalTreeID,
+						CO2RestoredKg:  loss.CO2LostKg,
+						CreditsRestored: loss.CreditsLost,
+						IssuedAt:       time.Now(),
+					}
+					
+					if err := tx.Create(&certificate).Error; err == nil {
+						updates["certificate_id"] = certID
+					}
 				}
 
 				tx.Model(&debt).Updates(updates)
@@ -256,25 +298,40 @@ func GetPendingTrees(c *gin.Context) {
 }
 
 func GetTreeStats(c *gin.Context) {
-	var total, pending, verified, rejected, cutReported, cutConfirmed, debtsActive, debtsCleared int64
+	var stats struct {
+		Total          int64   `json:"total"`
+		Pending        int64   `json:"pending"`
+		Verified       int64   `json:"verified"`
+		Rejected       int64   `json:"rejected"`
+		CutReported    int64   `json:"cut_reported"`
+		CutConfirmed   int64   `json:"cut_confirmed"`
+		DebtsActive    int64   `json:"debts_active"`
+		DebtsCleared   int64   `json:"debts_cleared"`
+		AvgPrice       float64 `json:"avg_price"`
+		Volume24h      float64 `json:"volume_24h"`
+		ActiveListings int64   `json:"active_listings"`
+	}
 
-	config.DB.Model(&models.Tree{}).Count(&total)
-	config.DB.Model(&models.Tree{}).Where("status = ?", "PENDING_VERIFICATION").Count(&pending)
-	config.DB.Model(&models.Tree{}).Where("status = ?", "VERIFIED").Count(&verified)
-	config.DB.Model(&models.Tree{}).Where("status = ?", "REJECTED").Count(&rejected)
-	config.DB.Model(&models.Tree{}).Where("status = ?", "CUT_REPORTED").Count(&cutReported)
-	config.DB.Model(&models.Tree{}).Where("status = ?", "CUT_CONFIRMED").Count(&cutConfirmed)
-	config.DB.Model(&models.ReplantationDebt{}).Where("status != ?", "CLEARED").Count(&debtsActive)
-	config.DB.Model(&models.ReplantationDebt{}).Where("status = ?", "CLEARED").Count(&debtsCleared)
+	config.DB.Model(&models.Tree{}).Count(&stats.Total)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "PENDING_VERIFICATION").Count(&stats.Pending)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "VERIFIED").Count(&stats.Verified)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "REJECTED").Count(&stats.Rejected)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "CUT_REPORTED").Count(&stats.CutReported)
+	config.DB.Model(&models.Tree{}).Where("status = ?", "CUT_CONFIRMED").Count(&stats.CutConfirmed)
 
-	c.JSON(http.StatusOK, gin.H{
-		"total":           total,
-		"pending":         pending,
-		"verified":        verified,
-		"rejected":        rejected,
-		"cut_reported":    cutReported,
-		"cut_confirmed":   cutConfirmed,
-		"debts_active":    debtsActive,
-		"debts_cleared":   debtsCleared,
-	})
+	config.DB.Model(&models.ReplantationDebt{}).Where("status != ?", "CLEARED").Count(&stats.DebtsActive)
+	config.DB.Model(&models.ReplantationDebt{}).Where("status = ?", "CLEARED").Count(&stats.DebtsCleared)
+
+	// Marketplace stats
+	config.DB.Model(&models.MarketplaceListing{}).Where("status = ?", "ACTIVE").Count(&stats.ActiveListings)
+	config.DB.Model(&models.MarketplaceListing{}).
+		Where("status IN ?", []string{"ACTIVE", "PARTIAL", "SOLD"}).
+		Select("COALESCE(AVG(price_per_credit), 700)").Scan(&stats.AvgPrice)
+
+	yesterday := time.Now().AddDate(0, 0, -1)
+	config.DB.Model(&models.MarketplaceTransaction{}).
+		Where("created_at >= ?", yesterday).
+		Select("COALESCE(SUM(credits_amount), 0)").Scan(&stats.Volume24h)
+
+	c.JSON(http.StatusOK, stats)
 }

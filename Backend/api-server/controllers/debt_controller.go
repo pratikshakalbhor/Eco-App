@@ -14,9 +14,14 @@ import (
 // GetMyDebts — GET /api/debt
 // Returns all replantation debts for the connected user's wallet.
 func GetMyDebts(c *gin.Context) {
-	walletAddress, _ := c.Get("walletAddress")
+	walletAddressRaw, exists := c.Get("walletAddress")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Wallet address not found in context"})
+		return
+	}
+	walletAddress := fmt.Sprintf("%v", walletAddressRaw)
 
-	var debts []models.ReplantationDebt
+	debts := make([]models.ReplantationDebt, 0)
 	if err := config.DB.
 		Preload("ReplacementTrees").
 		Where("owner_wallet = ?", walletAddress).
@@ -26,7 +31,22 @@ func GetMyDebts(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, debts)
+	type EnrichedDebt struct {
+		models.ReplantationDebt
+		Loss *models.EnvironmentalLoss `json:"environmental_loss"`
+	}
+
+	enriched := make([]EnrichedDebt, 0)
+	for _, debt := range debts {
+		var loss models.EnvironmentalLoss
+		config.DB.Where("tree_id = ?", debt.OriginalTreeID).First(&loss)
+		enriched = append(enriched, EnrichedDebt{
+			ReplantationDebt: debt,
+			Loss:            &loss,
+		})
+	}
+
+	c.JSON(http.StatusOK, enriched)
 }
 
 // GetDebtByID — GET /api/debt/:id

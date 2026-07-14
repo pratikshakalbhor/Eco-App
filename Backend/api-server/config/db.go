@@ -47,9 +47,9 @@ func InitDB() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// Auto-Migrate Models
+	// Auto-Migrate Models individually to ensure one failure doesn't block others
 	fmt.Println("Running Auto-Migration...")
-	if err := database.AutoMigrate(
+	migrateModels := []interface{}{
 		&models.User{},
 		&models.Tree{},
 		&models.CarbonCredit{},
@@ -61,8 +61,15 @@ func InitDB() {
 		&models.CompensationRecord{},
 		&models.ActivityLog{},
 		&models.RestorationCertificate{},
-	); err != nil {
-		log.Printf("Warning: AutoMigrate error: %v", err)
+		&models.MarketplaceListing{},
+		&models.MarketplaceTransaction{},
+		&models.CreditLedger{},
+	}
+
+	for _, model := range migrateModels {
+		if err := database.AutoMigrate(model); err != nil {
+			log.Printf("Warning: AutoMigrate error for %T: %v", model, err)
+		}
 	}
 
 	DB = database

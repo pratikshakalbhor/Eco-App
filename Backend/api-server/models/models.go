@@ -25,7 +25,7 @@ type User struct {
 
 type Tree struct {
 	ID    uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	TreeID string   `gorm:"unique;not null" json:"tree_id"`
+	TreeID string   `gorm:"unique;default:''" json:"tree_id"`
 
 	PlanterID uuid.UUID `json:"planter_id"`
 	Planter   User      `gorm:"foreignKey:PlanterID" json:"planter"`
@@ -57,9 +57,15 @@ type Tree struct {
 	IsReplacement   bool       `gorm:"default:false" json:"is_replacement"`
 	ReplantedDebtID *uuid.UUID `gorm:"type:uuid" json:"replanted_debt_id"`
 
+	// Credit accounting
+	CreditsAvailable float64 `gorm:"default:0" json:"credits_available"`
+	CreditsListed    float64 `gorm:"default:0" json:"credits_listed"`
+	CreditsSold      float64 `gorm:"default:0" json:"credits_sold"`
+
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`
 	Verifications []Verification `gorm:"foreignKey:TreeID" json:"verifications"`
+	CutReport     *CutReport     `gorm:"foreignKey:TreeID;references:TreeID" json:"cut_report"`
 }
 
 type CarbonCredit struct {
@@ -86,7 +92,7 @@ type Verification struct {
 // CutReport — submitted by tree owner when a verified tree is physically cut
 type CutReport struct {
 	ID               uuid.UUID  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	TreeID           string     `gorm:"not null" json:"tree_id"`
+	TreeID           string     `gorm:"not null;unique" json:"tree_id"`
 	Tree             Tree       `gorm:"foreignKey:TreeID;references:TreeID" json:"tree"`
 	OwnerWallet      string     `gorm:"not null" json:"owner_wallet"`
 	Reason           string     `gorm:"not null" json:"reason"` // Storm / Construction / Disease / Other
@@ -166,6 +172,50 @@ type ActivityLog struct {
 	Actor       string    `json:"actor"` // wallet address
 	Description string    `json:"description"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+type MarketplaceListing struct {
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	SellerWallet   string    `gorm:"not null" json:"seller_wallet"`
+	TreeID         string    `gorm:"not null" json:"tree_id"`
+	Tree           Tree      `gorm:"foreignKey:TreeID;references:TreeID" json:"tree"`
+	Species        string    `json:"species"`
+	CreditsTotal   float64   `gorm:"type:decimal(10,6);not null" json:"credits_total"`
+	CreditsSold    float64   `gorm:"type:decimal(10,6);default:0" json:"credits_sold"`
+	PricePerCredit float64   `gorm:"type:decimal(10,2);not null" json:"price_per_credit"` // in INR
+	Status         string    `gorm:"default:'ACTIVE'" json:"status"`                     // ACTIVE/PARTIAL/SOLD/CANCELLED
+	ExpiresAt      time.Time `json:"expires_at"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type MarketplaceTransaction struct {
+	ID                uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ListingID         uuid.UUID `json:"listing_id"`
+	BuyerWallet       string    `gorm:"not null" json:"buyer_wallet"`
+	SellerWallet      string    `gorm:"not null" json:"seller_wallet"`
+	TreeID            string    `gorm:"not null" json:"tree_id"`
+	CreditsAmount     float64   `gorm:"type:decimal(10,6);not null" json:"credits_amount"`
+	PricePerCreditINR float64   `gorm:"type:decimal(10,2);not null" json:"price_per_credit_inr"`
+	TotalINR          float64   `gorm:"type:decimal(12,2);not null" json:"total_inr"`
+	PlatformFeeINR    float64   `gorm:"type:decimal(10,2);not null" json:"platform_fee_inr"`
+	SellerReceivedINR float64   `gorm:"type:decimal(12,2);not null" json:"seller_received_inr"`
+	EthAmount         float64   `gorm:"type:decimal(18,8)" json:"eth_amount"`
+	EthRateAtTime     float64   `gorm:"type:decimal(12,2)" json:"eth_rate_at_time"`
+	TxHash            string    `json:"tx_hash"`
+	Status            string    `gorm:"default:'CONFIRMED'" json:"status"` // PENDING/CONFIRMED/FAILED
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+type CreditLedger struct {
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	Wallet       string    `gorm:"not null;index" json:"wallet"`
+	TreeID       string    `json:"tree_id"`
+	EventType    string    `json:"event_type"` // EARNED/LISTED/UNLISTED/SOLD/BOUGHT/FROZEN/UNFROZEN
+	Amount       float64   `gorm:"type:decimal(10,6);not null" json:"amount"`
+	BalanceAfter float64   `gorm:"type:decimal(10,6);not null" json:"balance_after"`
+	ReferenceID  string    `json:"reference_id"` // listing_id or transaction_id
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) (err error) {

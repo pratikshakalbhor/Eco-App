@@ -124,9 +124,10 @@ func VerifySignature(c *gin.Context) {
 
 	// Generate JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID.String(),
-		"role":    user.Role,
-		"exp":     time.Now().Add(time.Hour * 72).Unix(),
+		"user_id":        user.ID.String(),
+		"wallet_address": user.WalletAddress,
+		"role":           user.Role,
+		"exp":            time.Now().Add(time.Hour * 72).Unix(),
 	})
 
 	jwtSecret := os.Getenv("JWT_SECRET")
@@ -161,25 +162,47 @@ func GetUserStats(c *gin.Context) {
 	userIDString, _ := c.Get("userID")
 	userID, _ := uuid.Parse(userIDString.(string))
 
+	var user models.User
+	if err := config.DB.First(&user, "id = ?", userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
 	var totalTrees int64
 	config.DB.Model(&models.Tree{}).Where("planter_id = ?", userID).Count(&totalTrees)
 
-	var approvedTrees int64
-	config.DB.Model(&models.Tree{}).Where("planter_id = ? AND status = ?", userID, "approved").Count(&approvedTrees)
+	var verifiedTrees int64
+	config.DB.Model(&models.Tree{}).Where("planter_id = ? AND status = ?", userID, "VERIFIED").Count(&verifiedTrees)
+
+	var cutTrees int64
+	config.DB.Model(&models.Tree{}).Where("planter_id = ? AND (status = ? OR status = ?)", userID, "CUT_REPORTED", "CUT_CONFIRMED").Count(&cutTrees)
+
+	var replacementTrees int64
+	var totalDebtTrees int64
+	var debts []models.ReplantationDebt
+	config.DB.Where("owner_wallet = ?", user.WalletAddress).Find(&debts)
+
+	for _, d := range debts {
+		replacementTrees += int64(d.TreesVerified)
+		if d.Status != "CLEARED" {
+			totalDebtTrees += int64(d.TreesNeeded - d.TreesVerified)
+		}
+	}
 
 	var totalCredits float64
 	config.DB.Model(&models.CarbonCredit{}).Where("user_id = ?", userID).Select("COALESCE(SUM(amount), 0)").Scan(&totalCredits)
 
-	var user models.User
-	config.DB.First(&user, "id = ?", userID)
-
 	c.JSON(http.StatusOK, gin.H{
-		"total_trees":    totalTrees,
-		"verified_trees": approvedTrees,
-		"carbon_credits": totalCredits,
-		"nfts_minted":    approvedTrees, // Assuming 1 NFT per approved tree
-		"xp_points":      user.XPPoints,
-		"level":          user.Level,
+		"total_trees":           totalTrees,
+		"verified_trees":        verifiedTrees,
+		"cut_trees":             cutTrees,
+		"replacement_trees":     replacementTrees,
+		"environmental_debt":    float64(totalDebtTrees), // returning count as debt for now
+		"compensation_required": totalDebtTrees > 0,
+		"carbon_credits":        totalCredits,
+		"nfts_minted":           verifiedTrees,
+		"xp_points":             user.XPPoints,
+		"level":                 user.Level,
 	})
 }
 

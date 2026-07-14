@@ -19,10 +19,12 @@ func ReportCut(c *gin.Context) {
 	treeID := c.Param("id")
 
 	var input struct {
-		Reason           string `json:"reason" binding:"required"`
-		CutDate          string `json:"cut_date" binding:"required"` // YYYY-MM-DD
-		Description      string `json:"description"`
-		EvidenceImageURL string `json:"evidence_image_url"`
+		Reason           string  `json:"reason" binding:"required"`
+		CutDate          string  `json:"cut_date" binding:"required"` // YYYY-MM-DD
+		Description      string  `json:"description"`
+		EvidenceImageURL string  `json:"evidence_image_url"`
+		Latitude         float64 `json:"latitude" binding:"required"`
+		Longitude        float64 `json:"longitude" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -34,6 +36,16 @@ func ReportCut(c *gin.Context) {
 	var tree models.Tree
 	if err := config.DB.First(&tree, "tree_id = ?", treeID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tree not found"})
+		return
+	}
+
+	// GPS Validation - 100m radius
+	dist := calculateDistance(input.Latitude, input.Longitude, tree.Latitude, tree.Longitude)
+	if dist > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":    fmt.Sprintf("GPS verification failed. Your location is %.1fm away from the original tree record. You must be at the physical location to report a cut.", dist),
+			"distance": dist,
+		})
 		return
 	}
 
@@ -86,6 +98,13 @@ func ReportCut(c *gin.Context) {
 		Where("tree_id = ?", tree.ID).
 		Update("tradeable", false).Error; err != nil {
 		log.Printf("Warning: Failed to freeze credits for tree %s: %v", treeID, err)
+	}
+
+	// 4. Cancel any active marketplace listings
+	if err := tx.Model(&models.MarketplaceListing{}).
+		Where("tree_id = ? AND status IN ?", treeID, []string{"ACTIVE", "PARTIAL"}).
+		Update("status", "CANCELLED").Error; err != nil {
+		log.Printf("Warning: Failed to cancel listings for tree %s: %v", treeID, err)
 	}
 
 	tx.Commit()
@@ -300,4 +319,20 @@ func GetEnvironmentalLoss(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, loss)
+}
+
+// calculateDistance returns distance in meters between two coordinates
+func calculateDistance(lat1, lon1, lat2, lon2 float64) float64 {
+	const R = 6371000 // Earth radius in meters
+	phi1 := lat1 * math.Pi / 180
+	phi2 := lat2 * math.Pi / 180
+	deltaPhi := (lat2 - lat1) * math.Pi / 180
+	deltaLambda := (lon2 - lon1) * math.Pi / 180
+
+	a := math.Sin(deltaPhi/2)*math.Sin(deltaPhi/2) +
+		math.Cos(phi1)*math.Cos(phi2)*
+			math.Sin(deltaLambda/2)*math.Sin(deltaLambda/2)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+	return R * c
 }
