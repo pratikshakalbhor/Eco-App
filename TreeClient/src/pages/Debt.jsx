@@ -6,7 +6,7 @@ import {
   CheckCircle2, Clock, ArrowUpRight, Plus,
   Link as LinkIcon, FileCheck, ChevronRight,
   Calculator, History, Search, TreePine, 
-  AlertCircle, ShieldCheck
+  AlertCircle, ShieldCheck, Activity, Leaf, Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
@@ -252,12 +252,27 @@ const DebtCard = ({ debt, onLink, onPlant, onViewCert, delay }) => {
           </div>
         </div>
 
+        {/* Replacement Trees List */}
+        {debt.replacement_trees?.length > 0 && (
+          <div className="space-y-4">
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Replacement Inventory</p>
+             <div className="flex flex-wrap gap-3">
+                {debt.replacement_trees.map((rt) => (
+                  <div key={rt.id} className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                    <Leaf className="w-3 h-3 text-emerald-500" />
+                    <span className="text-[10px] font-mono font-black text-slate-700">{rt.tree_id}</span>
+                  </div>
+                ))}
+             </div>
+          </div>
+        )}
+
         {/* Action Bar */}
         <div className="pt-8 border-t border-slate-50 flex flex-col sm:flex-row items-center justify-between gap-6">
            <div className="flex items-center gap-6">
-              <ImpactStat icon={Wind} label="CO2 Restored" value="105kg" color="sky" />
+              <ImpactStat icon={Wind} label="CO2 Restored" value={`${Math.round(debt.environmental_loss?.co2_lost_kg || 0)}kg`} color="sky" />
               <div className="w-px h-8 bg-slate-100" />
-              <ImpactStat icon={Droplets} label="O2 Restored" value="76kg" color="emerald" />
+              <ImpactStat icon={Droplets} label="O2 Restored" value={`${Math.round(debt.environmental_loss?.oxygen_lost_kg || 0)}kg`} color="emerald" />
            </div>
 
            <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -307,4 +322,3 @@ const ImpactStat = ({ icon: Icon, label, value, color }) => (
   </div>
 );
 
-const Calendar = ({ className }) => <Clock className={className} />;

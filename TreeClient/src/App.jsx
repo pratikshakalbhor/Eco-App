@@ -5,6 +5,8 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import PlantTree from "./pages/PlantTree";
+import Environment from './pages/Environment';
+import Certificate from './pages/Certificate';
 import MyTree from "./pages/MyTree";
 import Dashboard from "./pages/Dashboard";
 import Map from "./pages/Map";
@@ -14,8 +16,7 @@ import Login from "./pages/Login";
 import TreeDetails from "./pages/TreeDetails";
 import ReportCut from "./pages/ReportCut";
 import Debt from "./pages/Debt";
-import Environment from "./pages/Environment";
-import Certificate from "./pages/Certificate";
+import Marketplace from "./pages/Marketplace";
 
 const queryClient = new QueryClient();
 
@@ -58,8 +59,10 @@ function App() {
               <Route path="debt" element={<Debt />} />
               <Route path="certificate/:id" element={<Certificate />} />
               <Route path="environment" element={<Environment />} />
+              <Route path="marketplace" element={<Marketplace />} />
               <Route path="map" element={<Map />} />
               <Route path="profile" element={<Profile />} />
+              <Route path="verify" element={<VerificationQueue />} />
               
               <Route path="verification" element={
                 <RoleRoute allowedRoles={['verifier', 'admin', 'user']}>

@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { 
   TreePine, Upload, Loader2, CheckCircle2, MapPin, 
   Calendar, Camera, Thermometer, Info, Search, 
   ChevronDown, X, Sparkles, Globe, ShieldCheck,
-  Navigation, Trash2, Sprout
+  Navigation, Trash2, Sprout, AlertTriangle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Label } from "../components/ui/Label";
+import { Badge } from "../components/ui/Badge";
 import axios from "axios";
 import { registerTreeOnChain, isSepoliaNetwork, connectWallet } from "../utils/web3Service";
 import { uploadToIPFS } from "../utils/ipfsService";
+import { useAuth } from "../hooks/useAuth";
 
 const COMMON_SPECIES = [
   "Neem", "Mango", "Banyan", "Peepal", "Ashoka",
@@ -22,6 +25,13 @@ const COMMON_SPECIES = [
 const HEALTH_STATUSES = ["Excellent", "Good", "Fair", "Poor", "Critical"];
 
 export default function RedesignedPlantTree() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const queryParams = new URLSearchParams(location.search);
+  const debtId = queryParams.get('debt_id');
+  const isReplacementParam = queryParams.get('is_replacement') === 'true';
+
   const [formData, setFormData] = useState({
     species: "",
     tree_name: "",
@@ -122,7 +132,25 @@ export default function RedesignedPlantTree() {
     if (!formData.photo_url) { setError("Please upload a photo of the tree."); return; }
 
     setSubmitting(true);
+    setSuccess(false);
+
     try {
+      // 1. Register on Blockchain
+      let tokenId = "";
+      let txHash = "";
+      try {
+        const metaURI = `ipfs://${formData.ipfs_hash}`;
+        const walletAddress = user?.wallet_address || (await connectWallet()).address;
+        const bcResult = await registerTreeOnChain(walletAddress, formData.ipfs_hash, metaURI);
+        tokenId = bcResult.tokenId;
+        txHash = bcResult.txHash;
+        setBlockchainData({ tokenId, txHash });
+      } catch (bcErr) {
+        console.error("Blockchain Registration Failed:", bcErr);
+        throw new Error("Failed to register tree on blockchain. Please ensure you have Sepolia ETH and confirm the transaction in MetaMask.");
+      }
+
+      // 2. Save to Backend with TokenID
       const payload = {
         species: formData.species,
         nickname: formData.tree_name,
@@ -134,11 +162,19 @@ export default function RedesignedPlantTree() {
         planting_date: formData.planted_date,
         age: parseInt(formData.estimated_age),
         health_status: formData.health_status,
+        blockchain_token_id: tokenId,
+        transaction_hash: txHash,
+        is_replacement: isReplacementParam || false,
+        replanted_debt_id: debtId || "",
       };
 
       const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/trees`, payload);
+      
+      // 3. Link to debt if applicable (backend handles some but good to be explicit or let backend do it)
+      // The backend RegisterTree handles the debt linking if ReplantedDebtID is provided.
+
       setSuccess(true);
-      setBlockchainData({ tree_id: data.tree.tree_id });
+      setBlockchainData(prev => ({ ...prev, tree_id: data.tree.tree_id }));
       
       // Auto redirect after 3 seconds or on button click
       setTimeout(() => {
@@ -230,6 +266,28 @@ export default function RedesignedPlantTree() {
           
           {/* Left: Form */}
           <div className="lg:col-span-3 space-y-6">
+            {debtId && (
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-rose-50 border-2 border-rose-100 rounded-3xl p-6 flex items-center justify-between shadow-sm"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-rose-600 rounded-2xl text-white">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Active Resolution</p>
+                    <h3 className="text-sm font-black text-slate-900">Linked to Debt: {debtId.slice(0, 8)}...</h3>
+                    <p className="text-[10px] text-slate-500 font-medium italic">This tree will count towards your replantation obligation.</p>
+                  </div>
+                </div>
+                <div className="hidden sm:block">
+                   <Badge className="bg-rose-100 text-rose-700 border-rose-200 uppercase text-[9px] font-black tracking-widest">Replacement Tree</Badge>
+                </div>
+              </motion.div>
+            )}
+
             <form onSubmit={handleSubmit} className="bg-white rounded-[2.5rem] p-8 lg:p-10 shadow-xl shadow-emerald-900/5 border border-emerald-50 space-y-6">
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

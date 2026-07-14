@@ -18,6 +18,7 @@ import {
     CONTRACT_ADDRESSES
 } from "../utils/web3Service";
 import { Button } from "@/components/ui/Button";
+import CreditBalanceCard from '@/components/marketplace/CreditBalanceCard';
 
 const ImpactMetric = ({ label, value, subLabel, icon: Icon, color }) => (
     <div className="bg-slate-50/50 border border-slate-100 p-6 rounded-3xl group hover:bg-white hover:shadow-xl transition-all duration-500">
@@ -40,9 +41,17 @@ const Profile = () => {
   });
 
   const { data: carbonData } = useQuery({
-    queryKey: ['carbon-credits-profile'],
+    queryKey: ['user-stats-profile'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits`);
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/stats`);
+      return data;
+    },
+  });
+
+  const { data: balance } = useQuery({
+    queryKey: ['credit-balance-profile'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/balance`);
       return data;
     },
   });
@@ -125,40 +134,18 @@ const Profile = () => {
           {/* Main Accounting Stats */}
           <div className="lg:col-span-2 space-y-10">
             
-            <section>
-                <div className="flex items-center justify-between mb-6">
+            <section className="space-y-6">
+                <div className="flex items-center justify-between">
                     <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
                         <Activity className="w-5 h-5 text-emerald-500" />
-                        Environmental Statement
+                        Carbon Credit Portfolio
                     </h3>
                     <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 rounded-xl text-white text-[10px] font-black uppercase">
-                        Score: {stats.sustainability_score?.toFixed(0) || 100}
+                        Active Listings: {balance?.currently_listed?.toFixed(2) || '0.00'}
                     </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <ImpactMetric 
-                        label="NFT Assets" 
-                        value={onSepolia ? web3Data.nftCount : "0"} 
-                        subLabel="Verified in biosphere" 
-                        icon={Leaf} 
-                        color="emerald" 
-                    />
-                    <ImpactMetric 
-                        label="ECO Balance" 
-                        value={onSepolia ? `${parseFloat(web3Data.ecoBalance).toFixed(2)}` : "0.00"} 
-                        subLabel="Verified Reward" 
-                        icon={Zap} 
-                        color="blue" 
-                    />
-                    <ImpactMetric 
-                        label="Carbon Credits" 
-                        value={onSepolia ? `${parseFloat(web3Data.carbonBalance).toFixed(2)}` : "0.00"} 
-                        subLabel="Verified Offset" 
-                        icon={TrendingUp} 
-                        color="teal" 
-                    />
-                </div>
+                <CreditBalanceCard balance={balance} />
             </section>
 
             <section className="bg-slate-900 rounded-[3rem] p-10 text-white relative overflow-hidden">

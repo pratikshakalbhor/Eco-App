@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   TreePine, Leaf, Axe, RefreshCcw, Wind, Droplets,
   Award, ShieldAlert, Activity, Globe, TrendingUp,
-  CheckCircle2, Clock, AlertTriangle,
+  CheckCircle2, Clock, AlertTriangle, ShieldCheck,
   ChevronRight, Zap, BarChart3, ArrowUpRight,
   ArrowDownRight, Sprout, CloudSun,
-  Filter, Calendar, ExternalLink
+  Filter, Calendar, ExternalLink, Wallet as WalletIcon
 } from 'lucide-react';
 import axios from 'axios';
 import {
@@ -113,12 +113,38 @@ export default function EcoChainDashboard() {
     },
   });
 
+  const { data: envStats } = useQuery({
+    queryKey: ['env-stats'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/environment/stats`);
+      return data;
+    }
+  });
+
+  const { data: recentActivity = [] } = useQuery({
+    queryKey: ['recent-activity'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/activity/recent`);
+      return data;
+    }
+  });
+
   const { data: debts = [] } = useQuery({
     queryKey: ['my-debts-summary'],
     queryFn: async () => {
       const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/debt`);
       return Array.isArray(data) ? data : [];
     },
+    enabled: !!localStorage.getItem('eco_token')
+  });
+
+  const { data: balance } = useQuery({
+    queryKey: ['credit-balance'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/balance`);
+      return data;
+    },
+    enabled: !!localStorage.getItem('eco_token')
   });
 
   const activeDebtCount = useMemo(() => debts.filter(d => d.status !== 'CLEARED').length, [debts]);
@@ -205,21 +231,99 @@ export default function EcoChainDashboard() {
           </div>
         </motion.div>
 
-        <section>
-          <SectionHeader icon={BarChart3} title="Core Lifecycle Metrics" subtitle="Real-time registry status breakdown" />
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <MetricCard title="Total Registrations" value={stats.total} icon={TreePine} accent="slate" subtitle="All-time system entries" delay={0.1} />
-            <MetricCard title="Awaiting Verification" value={stats.pending} icon={Clock} accent="amber" subtitle="Pending audit review" delay={0.2} />
-            <MetricCard title="Verified Assets" value={stats.verified} icon={CheckCircle2} accent="emerald" subtitle="On-chain confirmed" delay={0.3} />
-            <MetricCard title="Rejected / Voided" value={stats.rejected} icon={ShieldAlert} accent="rose" subtitle="Asset integrity failures" delay={0.4} />
+        <section className="grid lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1">
+            <SectionHeader icon={BarChart3} title="Core Lifecycle Metrics" subtitle="Real-time registry status breakdown" />
+            <div className="grid grid-cols-2 gap-4">
+              <MetricCard title="Total Assets" value={stats.total} icon={TreePine} accent="emerald" delay={0.1} />
+              <MetricCard title="Verified" value={stats.verified} icon={ShieldCheck} accent="emerald" delay={0.2} />
+              <MetricCard title="Pending Audit" value={stats.pending} icon={Clock} accent="amber" delay={0.3} />
+              <MetricCard title="Cut/Voided" value={stats.cut_confirmed} icon={Axe} accent="rose" delay={0.4} />
+            </div>
+          </div>
+          
+          <div className="lg:col-span-1">
+            <SectionHeader icon={Globe} title="Environmental Health" subtitle="Global biological impact monitoring" />
+            <div className="grid grid-cols-2 gap-4">
+              <MetricCard 
+                title="CO₂ Absorbed" 
+                value={Math.round(envStats?.total_co2_absorbed || 0)} 
+                icon={Wind} 
+                accent="emerald" 
+                subtitle="All-time kg"
+                delay={0.1} 
+              />
+              <MetricCard 
+                title="CO₂ Lost" 
+                value={Math.round(envStats?.total_co2_lost || 0)} 
+                icon={Activity} 
+                accent="rose" 
+                subtitle="Confirmed cut loss"
+                delay={0.2} 
+              />
+              <MetricCard 
+                title="Net Balance" 
+                value={Math.round(envStats?.net_co2_balance || 0)} 
+                icon={TrendingUp} 
+                accent={envStats?.net_co2_balance >= 0 ? "emerald" : "rose"} 
+                subtitle="Current kg CO₂"
+                delay={0.3} 
+              />
+              <MetricCard 
+                title="Active Debts" 
+                value={stats.debts_active} 
+                icon={AlertTriangle} 
+                accent="amber" 
+                subtitle="Queue for replant"
+                delay={0.4} 
+              />
+            </div>
+          </div>
+
+          <div className="lg:col-span-1">
+            <SectionHeader icon={TrendingUp} title="Carbon Market" subtitle="Tokenized ecological value" />
+            <div className="grid grid-cols-2 gap-4">
+              <MetricCard 
+                title="Market Price" 
+                value={`₹${stats?.avg_price?.toFixed(0) || '700'}`} 
+                icon={TrendingUp} 
+                accent="sky" 
+                subtitle="Per carbon credit"
+                delay={0.1} 
+              />
+              <MetricCard 
+                title="Traded Volume" 
+                value={`${stats?.volume_24h?.toFixed(1) || '0.0'}`} 
+                icon={Activity} 
+                accent="sky" 
+                subtitle="Last 24h credits"
+                delay={0.2} 
+              />
+              <MetricCard 
+                title="Active Deals" 
+                value={stats?.active_listings || '0'} 
+                icon={Zap} 
+                accent="amber" 
+                subtitle="Available for trade"
+                delay={0.3} 
+              />
+              <MetricCard 
+                title="Your Balance" 
+                value={balance?.available?.toFixed(2) || '0.00'} 
+                icon={WalletIcon} 
+                accent="emerald" 
+                subtitle="ECO credits"
+                delay={0.4} 
+              />
+            </div>
           </div>
         </section>
 
         <div className="grid lg:grid-cols-3 gap-8">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-2 bg-white rounded-3xl p-8 border border-emerald-50 shadow-sm">
                 <SectionHeader icon={TrendingUp} title="Registry Progression" subtitle="Total assets vs Verified milestones" />
-                <div className="h-[300px]">
-                   <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[300px] min-h-[300px] w-full">
+                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                       <AreaChart data={[
                         { name: 'Jan', total: 0, verified: 0 },
                         { name: 'Feb', total: Math.floor(stats.total * 0.3), verified: Math.floor(stats.verified * 0.2) },
@@ -243,8 +347,8 @@ export default function EcoChainDashboard() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-8 border border-emerald-50 shadow-sm flex flex-col items-center">
                 <h3 className="text-sm font-black uppercase text-slate-400 mb-8 self-start">Distribution</h3>
-                <div className="h-[200px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[200px] min-h-[200px] w-full">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                         <PieChart>
                             <Pie data={pieData.length ? pieData : [{name: 'Empty', value: 1}]} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                                 {pieData.map((entry, index) => <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
@@ -272,18 +376,29 @@ export default function EcoChainDashboard() {
             <div className="lg:col-span-2 space-y-6">
                 <SectionHeader icon={Activity} title="Registration Timeline" subtitle="Latest lifecycle events in the registry" />
                 <div className="bg-white rounded-3xl p-6 border border-emerald-50 shadow-sm space-y-4">
-                    {recentActivities.map(act => (
+                    {(recentActivity || []).map(act => (
                         <div key={act.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl hover:bg-emerald-50 transition-colors group">
                             <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${act.type==='verify'?'bg-emerald-100 text-emerald-600':act.type==='reject'?'bg-rose-100 text-rose-600':'bg-amber-100 text-amber-600'}`}>
-                                    {act.type==='verify'?<CheckCircle2 className="w-5 h-5"/>:act.type==='reject'?<AlertTriangle className="w-5 h-5"/>:<History className="w-5 h-5"/>}
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                  act.event_type.includes('VERIFIED') ? 'bg-emerald-100 text-emerald-600' : 
+                                  act.event_type.includes('CUT') ? 'bg-rose-100 text-rose-600' : 
+                                  'bg-amber-100 text-amber-600'
+                                }`}>
+                                    {act.event_type.includes('VERIFIED') ? <CheckCircle2 className="w-5 h-5"/> : 
+                                     act.event_type.includes('CUT') ? <Axe className="w-5 h-5"/> : 
+                                     <Sprout className="w-5 h-5"/>}
                                 </div>
-                                <div>
-                                    <p className="text-sm font-black text-slate-900">{act.label}</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{act.species}</p>
+                                <div className="flex-1">
+                                    <p className="text-sm font-black text-slate-900">{act.description}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <p className="text-[10px] text-slate-400 font-bold uppercase">{act.event_type.replace('_', ' ')}</p>
+                                      {act.actor !== 'SYSTEM' && (
+                                        <p className="text-[9px] font-mono text-emerald-600">by {act.actor.slice(0, 6)}...</p>
+                                      )}
+                                    </div>
                                 </div>
                             </div>
-                            <span className="text-[10px] font-mono text-slate-400">{new Date(act.time).toLocaleDateString()}</span>
+                            <span className="text-[10px] font-mono text-slate-400">{new Date(act.created_at).toLocaleDateString()}</span>
                         </div>
                     ))}
                 </div>
@@ -305,16 +420,24 @@ export default function EcoChainDashboard() {
   );
 }
 
-const IntegrityCheck = ({ label, status, icon: Icon, color }) => (
-    <div className="flex items-center justify-between p-5 bg-white rounded-2xl border border-emerald-50 shadow-sm">
-        <div className="flex items-center gap-3">
-            <div className={`p-2 bg-${color}-50 rounded-lg`}>
-                <Icon className={`w-4 h-4 text-${color}-600`} />
+const IntegrityCheck = ({ label, status, icon: Icon, color }) => {
+    const colors = {
+        emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
+        sky: { bg: 'bg-sky-50', text: 'text-sky-600' },
+    };
+    const c = colors[color] || colors.emerald;
+    
+    return (
+        <div className="flex items-center justify-between p-5 bg-white rounded-2xl border border-emerald-50 shadow-sm">
+            <div className="flex items-center gap-3">
+                <div className={`p-2 ${c.bg} rounded-lg`}>
+                    <Icon className={`w-4 h-4 ${c.text}`} />
+                </div>
+                <span className="text-xs font-black uppercase text-slate-400">{label}</span>
             </div>
-            <span className="text-xs font-black uppercase text-slate-400">{label}</span>
+            <span className={`text-[10px] font-black ${c.text} ${c.bg} px-2 py-0.5 rounded-full`}>{status}</span>
         </div>
-        <span className={`text-[10px] font-black text-${color}-600 bg-${color}-50 px-2 py-0.5 rounded-full`}>{status}</span>
-    </div>
-);
+    );
+};
 
-const History = ({ className }) => <Clock className={className} />;
+

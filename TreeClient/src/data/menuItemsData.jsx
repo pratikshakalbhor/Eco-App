@@ -18,7 +18,9 @@ export const menuItemsData = [
   { id: 3, label: "My Trees", path: "/mytrees", Icon: Trees },
   { id: 10, label: "Environmental Debt", path: "/debt", Icon: Leaf },
   { id: 9, label: "Verification Hub", path: "/verification", Icon: ShieldCheck },
+  { id: 11, label: "Marketplace", path: "/marketplace", Icon: Calculator },
+  { id: 12, label: "Environment Hub", path: "/environment", Icon: Trophy },
   { id: 8, label: "Profile", path: "/profile", Icon: User },
-];   
+];
 
 export default menuItemsData;

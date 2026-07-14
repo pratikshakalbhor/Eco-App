@@ -7,7 +7,7 @@ import {
   Search, Filter, Globe, History, Users,
   Calculator, Zap, Layers, ChevronRight,
   ClipboardCheck, Clock, FileSearch, Trash2,
-  Sprout, Ban, CheckCircle2, Award, ExternalLink, Axe, History
+  Sprout, Ban, CheckCircle2, Award, ExternalLink, Axe, XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
@@ -49,7 +49,18 @@ export default function UnifiedVerificationHub() {
   });
 
   const verifyTreeMutation = useMutation({
-    mutationFn: async ({ id, status, notes }) => {
+    mutationFn: async ({ id, status, notes, tokenId }) => {
+      // 1. If verifying, do blockchain transaction first
+      if (status === 'VERIFIED' && tokenId) {
+        try {
+          await verifyTreeOnChain(tokenId);
+        } catch (err) {
+          console.error("Blockchain verification failed:", err);
+          throw new Error("Blockchain transaction failed. Verification not recorded.");
+        }
+      }
+      
+      // 2. Update backend
       await axios.post(`${import.meta.env.VITE_API_URL}/api/trees/${id}/verify`, { status, notes });
     },
     onSuccess: () => {
@@ -266,7 +277,7 @@ export default function UnifiedVerificationHub() {
                                         {activeStatus === 'PENDING_VERIFICATION' && (
                                             <div className="flex gap-2">
                                                 <button 
-                                                    onClick={() => verifyTreeMutation.mutate({id: item.id, status: 'VERIFIED'})}
+                                                    onClick={() => verifyTreeMutation.mutate({id: item.id, status: 'VERIFIED', tokenId: item.blockchain_token_id})}
                                                     className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
                                                     title="Approve"
                                                 >

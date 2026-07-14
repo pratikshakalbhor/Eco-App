@@ -203,7 +203,7 @@ const MetricSmall = ({ label, value, icon: Icon, color }) => (
 );
 
 const PremiumTreeCard = ({ tree, index, onClick }) => {
-    const status = STATUS_CONFIG[tree.status] || STATUS_CONFIG.pending_verification;
+    const status = STATUS_CONFIG[tree.status] || STATUS_CONFIG.PENDING_VERIFICATION;
     const StatusIcon = status.icon;
 
     return (
@@ -233,6 +233,19 @@ const PremiumTreeCard = ({ tree, index, onClick }) => {
                     <h3 className="text-2xl font-black text-white leading-tight">{tree.species}</h3>
                     {tree.nickname && <p className="text-white/60 text-xs italic mt-1">"{tree.nickname}"</p>}
                 </div>
+
+                {tree.is_replacement && (
+                    <div className="absolute top-4 right-4 bg-emerald-500 text-white px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xl">
+                        <Sprout className="w-3 h-3" />
+                        <span className="text-[8px] font-black uppercase">Replacement</span>
+                    </div>
+                )}
+
+                {(tree.status === 'CUT_REPORTED' || tree.status === 'CUT_CONFIRMED') && !tree.is_replacement && (
+                    <div className="absolute top-4 right-4 bg-rose-600 text-white p-2.5 rounded-xl shadow-xl animate-pulse">
+                        <Axe className="w-4 h-4" />
+                    </div>
+                )}
             </div>
 
             <div className="p-8 space-y-6">
@@ -243,9 +256,27 @@ const PremiumTreeCard = ({ tree, index, onClick }) => {
                     </div>
                     <div className="text-right">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Health</p>
-                        <p className="text-xs font-black text-slate-700">{tree.health_status || 'Stable'}</p>
+                        <p className={`text-xs font-black ${tree.status === 'CUT_CONFIRMED' ? 'text-rose-600' : 'text-slate-700'}`}>
+                            {tree.status === 'CUT_CONFIRMED' ? 'REMOVED' : tree.health_status || 'Stable'}
+                        </p>
                     </div>
                 </div>
+
+                {tree.status === 'CUT_CONFIRMED' && tree.environmental_loss && (
+                    <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 flex items-center justify-between">
+                        <div>
+                            <p className="text-[8px] font-black text-rose-600 uppercase tracking-widest">CO₂ Lost</p>
+                            <p className="text-sm font-black text-slate-900">{Math.round(tree.environmental_loss.co2_lost_kg)} kg</p>
+                        </div>
+                        <Button 
+                            variant="link" 
+                            className="text-rose-600 text-[10px] font-black uppercase p-0 h-auto"
+                            onClick={(e) => { e.stopPropagation(); window.location.href='/debt'; }}
+                        >
+                            View Debt →
+                        </Button>
+                    </div>
+                )}
 
                 <div className="flex gap-3">
                     <Button 
@@ -286,7 +317,7 @@ const ImpactMetric = ({ icon: Icon, label, value, color }) => (
 );
 
 const TreeListItem = ({ tree, onClick }) => {
-    const status = STATUS_CONFIG[tree.status] || STATUS_CONFIG.pending_verification;
+    const status = STATUS_CONFIG[tree.status] || STATUS_CONFIG.PENDING_VERIFICATION;
     const StatusIcon = status.icon;
 
     return (
@@ -297,8 +328,13 @@ const TreeListItem = ({ tree, onClick }) => {
             className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-4 rounded-[2rem] border border-emerald-50 hover:shadow-xl hover:shadow-emerald-900/5 transition-all group cursor-pointer"
         >
             <div className="flex items-center gap-6">
-                <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-inner">
+                <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-inner relative">
                     <img src={tree.image_url} className="w-full h-full object-cover" alt="" />
+                    {(tree.status === 'CUT_REPORTED' || tree.status === 'CUT_CONFIRMED') && (
+                        <div className="absolute inset-0 bg-rose-600/40 flex items-center justify-center">
+                            <Axe className="w-6 h-6 text-white" />
+                        </div>
+                    )}
                 </div>
                 <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -306,6 +342,12 @@ const TreeListItem = ({ tree, onClick }) => {
                         <div className={`${status.bg} ${status.color} px-2 py-0.5 rounded-full text-[8px] font-black uppercase`}>
                            {tree.status.replace('_', ' ')}
                         </div>
+                        {tree.is_replacement && (
+                            <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 flex items-center gap-1 px-2 py-0 h-4 rounded-full">
+                                <Sprout className="w-2.5 h-2.5" />
+                                <span className="text-[7px] font-black uppercase">Replacement</span>
+                            </Badge>
+                        )}
                     </div>
                     <h3 className="text-lg font-black text-slate-900">{tree.species}</h3>
                     <div className="flex items-center gap-2 text-slate-400 mt-1">

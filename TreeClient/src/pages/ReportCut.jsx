@@ -30,6 +30,8 @@ export default function ReportCut() {
     cut_date: new Date().toISOString().split('T')[0],
     description: '',
     evidence_image_url: '',
+    latitude: null,
+    longitude: null,
   });
   const [evidenceFile, setEvidenceFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -49,6 +51,23 @@ export default function ReportCut() {
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (file) setEvidenceFile(file);
+  };
+
+  const captureLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm(prev => ({
+          ...prev,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }));
+      },
+      () => setError("Could not get location. Please allow location access for verification.")
+    );
   };
 
   const uploadEvidence = async () => {
@@ -98,6 +117,8 @@ export default function ReportCut() {
         cut_date: form.cut_date,
         description: form.description,
         evidence_image_url: evidenceUrl,
+        latitude: form.latitude,
+        longitude: form.longitude,
       });
 
       setSuccess(true);
@@ -280,6 +301,41 @@ export default function ReportCut() {
               className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-5 text-slate-700 font-medium text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
             <p className="text-[10px] text-slate-300 text-right mt-1">{form.description.length}/500</p>
+          </div>
+
+          {/* GPS Confirmation */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+               <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">GPS Confirmation *</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Verify your current location</p>
+               </div>
+               <button 
+                  type="button" 
+                  onClick={captureLocation}
+                  className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-[9px] font-black uppercase text-amber-600 hover:border-amber-400 transition-all"
+               >
+                  Auto-Capture
+               </button>
+            </div>
+            {form.latitude ? (
+               <div className="flex items-center gap-3 text-emerald-600">
+                  <div className="p-2 bg-emerald-100 rounded-lg">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black tabular-nums">{form.latitude.toFixed(6)}, {form.longitude.toFixed(6)}</p>
+                    <p className="text-[9px] font-bold uppercase opacity-70">Location Captured Successfully</p>
+                  </div>
+               </div>
+            ) : (
+               <div className="flex items-center gap-3 text-slate-400">
+                  <div className="p-2 bg-slate-100 rounded-lg">
+                    <Navigation className="w-4 h-4" />
+                  </div>
+                  <p className="text-[10px] font-bold uppercase">Location Not Yet Captured</p>
+               </div>
+            )}
           </div>
 
           {error && (

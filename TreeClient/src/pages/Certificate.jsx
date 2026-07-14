@@ -1,22 +1,21 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { 
-  ShieldCheck, Award, Download, Share2, 
-  ChevronLeft, TreePine, MapPin, Calendar,
-  Leaf, Wind, Activity, CheckCircle2, Globe
+  ShieldCheck, Leaf, Wind, Droplets, 
+  Download, Share2, ChevronLeft, Globe,
+  Shield, Award, Activity, Calendar,
+  TreePine, FileCheck
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 
 export default function Certificate() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const certRef = useRef(null);
 
-  const { data: cert, isLoading, isError } = useQuery({
+  const { data: cert, isLoading } = useQuery({
     queryKey: ['certificate', id],
     queryFn: async () => {
       const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/debt/${id}/certificate`);
@@ -30,143 +29,127 @@ export default function Certificate() {
     </div>
   );
 
-  if (isError || !cert) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-            <h1 className="text-2xl font-black text-slate-900">Certificate Not Found</h1>
-            <Button onClick={() => navigate('/debt')} className="mt-4">Back to Debts</Button>
-        </div>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-[#F3F7F5] py-12 px-6 lg:px-12">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#F3F8F5] py-20 px-8 flex flex-col items-center">
+      <div className="max-w-4xl w-full">
         
         <button 
-          onClick={() => navigate('/debt')}
-          className="flex items-center gap-2 text-slate-500 hover:text-emerald-600 transition-colors font-black uppercase text-[10px] tracking-widest"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-slate-500 hover:text-emerald-700 transition-colors font-black uppercase text-[10px] tracking-widest mb-12"
         >
           <ChevronLeft className="w-4 h-4" />
-          Back to Obligations
+          Back to Debt Overview
         </button>
 
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* Certificate Display */}
-          <div className="lg:col-span-3">
-             <motion.div 
-               initial={{ opacity: 0, y: 30 }}
-               animate={{ opacity: 1, y: 0 }}
-               ref={certRef}
-               className="bg-white rounded-[3rem] p-16 shadow-2xl relative overflow-hidden border-[12px] border-emerald-50"
-             >
-                {/* Decorative Elements */}
-                <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-                  <Globe className="w-96 h-96" />
+        <motion.div 
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-[4rem] shadow-2xl shadow-emerald-900/10 border border-emerald-50 overflow-hidden relative"
+        >
+          {/* Decorative Corner */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-bl-[10rem] -z-0" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-tr-[10rem] -z-0" />
+
+          {/* Certificate Content */}
+          <div className="relative z-10 p-16 md:p-24 flex flex-col items-center text-center space-y-12">
+            
+            <div className="flex flex-col items-center gap-6">
+                <div className="relative">
+                    <div className="w-32 h-32 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <FileCheck className="w-16 h-16 text-emerald-600" />
+                    </div>
+                    <motion.div 
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                        className="absolute -inset-4 border-2 border-dashed border-emerald-200 rounded-full"
+                    />
                 </div>
-                <div className="absolute top-0 left-0 w-32 h-32 bg-emerald-500/5 rounded-br-full" />
-                <div className="absolute bottom-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-tl-full" />
+                <div>
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tight uppercase leading-none">Restoration Certificate</h1>
+                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.4em] mt-4">Verified Ecological Integrity Protocol</p>
+                </div>
+            </div>
 
-                {/* Content */}
-                <div className="relative z-10 space-y-12 text-center">
-                   <div className="flex flex-col items-center gap-4">
-                      <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 shadow-inner">
-                        <ShieldCheck className="w-12 h-12" />
-                      </div>
-                      <div>
-                        <h2 className="text-emerald-600 text-sm font-black uppercase tracking-[0.4em] mb-1">EcoChain Protocol</h2>
-                        <h1 className="text-4xl font-black text-slate-900 tracking-tight italic text-emerald-900 mb-2">Restoration Certificate</h1>
-                        <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">Certificate ID: {cert.certificate_id} </p>
-                      </div>
-                   </div>
+            <div className="w-full max-w-2xl space-y-10">
+                <div className="space-y-4">
+                    <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest">Document Registry ID</p>
+                    <p className="text-2xl font-mono font-black text-slate-700 bg-slate-50 py-4 px-8 rounded-2xl border border-slate-100 inline-block">{cert.certificate_id}</p>
+                </div>
 
-                   <div className="h-px w-32 bg-slate-100 mx-auto" />
+                <div className="space-y-6">
+                    <p className="text-xl text-slate-600 font-medium leading-relaxed">
+                        This document certifies that the environmental obligation incurred by <br />
+                        the removal of <strong>{cert.original_tree.species}</strong> (ID: {cert.original_tree.id}) <br />
+                        at <strong>{cert.original_tree.location}</strong> has been officially resolved.
+                    </p>
+                </div>
 
-                   <div className="space-y-6 max-w-2xl mx-auto">
-                      <p className="text-xl font-medium text-slate-600 leading-relaxed">
-                         This document officially certifies that the environmental obligation incurred by the removal of biological asset 
-                         <strong className="text-slate-900 px-2">#{cert.original_tree.id} ({cert.original_tree.species})</strong> 
-                         has been fully resolved and neutralized.
-                      </p>
-                      <p className="text-xl font-medium text-slate-600 leading-relaxed">
-                         Issued to wallet address:
-                         <span className="block mt-4 font-mono font-black text-2xl text-emerald-700 bg-emerald-50 py-3 rounded-2xl border border-emerald-100">{cert.issued_to}</span>
-                      </p>
-                   </div>
+                <div className="grid grid-cols-2 gap-8 py-10 border-y border-slate-100">
+                    <div className="text-left">
+                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Original Cut Date</p>
+                        <p className="text-lg font-black text-slate-800">{new Date(cert.cut_date).toLocaleDateString()}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Restoration Unified</p>
+                        <p className="text-lg font-black text-emerald-600">{new Date(cert.cleared_date).toLocaleDateString()}</p>
+                    </div>
+                </div>
 
-                   <div className="grid grid-cols-3 gap-8 py-10">
-                      <div className="text-center">
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">CO₂ Restoration</p>
-                         <p className="text-3xl font-black text-slate-900 tracking-tight">{cert.co2_restored_kg}kg</p>
-                      </div>
-                      <div className="text-center">
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Replacements</p>
-                         <p className="text-3xl font-black text-slate-900 tracking-tight">{cert.replacement_trees.length} Trees</p>
-                      </div>
-                      <div className="text-center">
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Resolution Date</p>
-                         <p className="text-3xl font-black text-slate-900 tracking-tight">{new Date(cert.cleared_date).toLocaleDateString()}</p>
-                      </div>
-                   </div>
-
-                   <div className="bg-slate-50 p-8 rounded-3xl space-y-4 text-left border border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        Verified Replacement Assets:
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {cert.replacement_trees.map(id => (
-                          <Badge key={id} variant="outline" className="bg-white border-slate-200 text-slate-600 font-mono font-bold text-[10px] py-1 px-3">
-                            {id}
-                          </Badge>
+                <div className="py-6">
+                    <p className="text-[10px] font-black text-slate-400 uppercase mb-6 tracking-widest">Replacement Asset Inventory</p>
+                    <div className="flex flex-wrap justify-center gap-3">
+                        {cert.replacement_trees.map(treeId => (
+                            <Badge key={treeId} className="bg-emerald-50 text-emerald-700 border-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black font-mono">
+                                {treeId}
+                            </Badge>
                         ))}
-                      </div>
-                   </div>
-
-                   <div className="pt-12 flex justify-between items-end border-t border-slate-50">
-                      <div className="text-left">
-                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Blockchain Hash</p>
-                        <p className="text-[10px] font-mono font-bold text-emerald-600">0x8a7f...d9e1</p>
-                      </div>
-                      <div className="text-center">
-                         <div className="w-16 h-16 bg-slate-900 rounded-2xl mx-auto flex items-center justify-center text-white mb-2">
-                           <Award className="w-8 h-8" />
-                         </div>
-                         <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest leading-none">Official Seal</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Issue Date</p>
-                        <p className="text-[10px] font-mono font-bold text-slate-600">{new Date(cert.issued_at).toLocaleDateString()}</p>
-                      </div>
-                   </div>
+                    </div>
                 </div>
-             </motion.div>
+
+                <div className="grid grid-cols-2 gap-6">
+                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex items-center gap-4">
+                        <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white">
+                            <Wind className="w-6 h-6" />
+                        </div>
+                        <div className="text-left">
+                            <p className="text-[10px] font-black text-slate-400 uppercase">CO₂ Restored</p>
+                            <p className="text-xl font-black text-slate-900">{cert.co2_restored_kg} kg</p>
+                        </div>
+                    </div>
+                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex items-center gap-4">
+                        <div className="w-12 h-12 bg-sky-500 rounded-2xl flex items-center justify-center text-white">
+                            <Droplets className="w-6 h-6" />
+                        </div>
+                        <div className="text-left">
+                            <p className="text-[10px] font-black text-slate-400 uppercase">Credits Restored</p>
+                            <p className="text-xl font-black text-slate-900">{cert.credits_restored} ECO</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="pt-12 flex flex-col items-center gap-8">
+                <div className="flex items-center gap-4 bg-emerald-900 text-white px-10 py-5 rounded-[2rem] shadow-2xl">
+                    <Globe className="w-10 h-10 text-emerald-400" />
+                    <div className="text-left border-l border-white/20 pl-4">
+                        <p className="text-[9px] font-black uppercase text-emerald-400 leading-none mb-1">Blockchain Hash</p>
+                        <p className="text-[10px] font-mono opacity-60 break-all w-60">Verified on Ethereum Sepolia Node Cluster...</p>
+                    </div>
+                </div>
+
+                <div className="flex gap-4">
+                    <Button className="h-14 px-10 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest gap-2 flex shadow-xl shadow-emerald-200">
+                        <Download className="w-4 h-4" />
+                        Download PDF
+                    </Button>
+                    <Button variant="outline" className="h-14 px-10 rounded-2xl border-slate-200 text-slate-600 font-black uppercase text-[10px] tracking-widest gap-2 flex hover:bg-slate-50 transition-all">
+                        <Share2 className="w-4 h-4" />
+                        Share Social
+                    </Button>
+                </div>
+            </div>
           </div>
-
-          {/* Action Sidebar */}
-          <div className="space-y-6">
-             <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm space-y-6">
-                <h3 className="text-lg font-black text-slate-900 tracking-tight">Certification Actions</h3>
-                <Button className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-                   <Download className="w-4 h-4" />
-                   Download PDF
-                </Button>
-                <Button variant="outline" className="w-full h-12 border-slate-200 text-slate-600 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-                   <Share2 className="w-4 h-4" />
-                   Share on Social
-                </Button>
-             </div>
-
-             <div className="bg-emerald-900 rounded-[2rem] p-8 text-white relative overflow-hidden">
-                <Wind className="absolute -bottom-4 -right-4 w-24 h-24 opacity-10" />
-                <h4 className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-4">Integrity Restored</h4>
-                <p className="text-sm font-medium leading-relaxed">
-                   By resolving this debt, your sustainability score has been restored to 100% and your carbon credits are now unfrozen for trading.
-                </p>
-             </div>
-          </div>
-        </div>
-
+        </motion.div>
       </div>
     </div>
   );
