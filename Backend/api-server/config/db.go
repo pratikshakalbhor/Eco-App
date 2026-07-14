@@ -7,6 +7,8 @@ import (
 	"github.com/joho/godotenv"
 	"ecochain-backend/models"
 	"gorm.io/driver/postgres"
+	"github.com/glebarez/sqlite"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -44,8 +46,28 @@ func InitDB() {
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Println("WARNING: Failed to connect to Postgres database, falling back to local SQLite (ecochain.db):", err)
+		database, err = gorm.Open(sqlite.Open("ecochain.db"), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Warn),
+		})
+		if err != nil {
+			log.Fatal("Failed to connect to both Postgres and SQLite databases:", err)
+		}
 	}
+
+	// Register global UUID generator callback for all GORM models
+	database.Callback().Create().Before("gorm:create").Register("uuid_generator", func(tx *gorm.DB) {
+		if tx.Statement.Schema != nil {
+			for _, field := range tx.Statement.Schema.Fields {
+				if field.Name == "ID" && field.StructField.Type.String() == "uuid.UUID" {
+					val, isZero := field.ValueOf(tx.Statement.Context, tx.Statement.ReflectValue)
+					if isZero || val.(uuid.UUID) == uuid.Nil {
+						field.Set(tx.Statement.Context, tx.Statement.ReflectValue, uuid.New())
+					}
+				}
+			}
+		}
+	})
 
 	// Auto-Migrate Models individually to ensure one failure doesn't block others
 	fmt.Println("Running Auto-Migration...")

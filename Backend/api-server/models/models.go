@@ -8,7 +8,7 @@ import (
 )
 
 type User struct {
-	ID                  uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID                  uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	WalletAddress       string    `gorm:"unique;not null" json:"wallet_address"`
 	Nonce               string    `json:"-"`
 	FullName            string    `json:"full_name"`
@@ -24,7 +24,7 @@ type User struct {
 }
 
 type Tree struct {
-	ID    uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID    uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	TreeID string   `gorm:"unique;default:''" json:"tree_id"`
 
 	PlanterID uuid.UUID `json:"planter_id"`
@@ -69,7 +69,7 @@ type Tree struct {
 }
 
 type CarbonCredit struct {
-	ID              uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID              uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	UserID          uuid.UUID `json:"user_id"`
 	TreeID          uuid.UUID `json:"tree_id"`
 	Amount          float64   `json:"amount"` // Positive for earned, negative for lost
@@ -80,7 +80,7 @@ type CarbonCredit struct {
 }
 
 type Verification struct {
-	ID         uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	TreeID     uuid.UUID `json:"tree_id"`
 	VerifierID uuid.UUID `json:"verifier_id"`
 	Status     string    `json:"status"` // VERIFIED, REJECTED
@@ -91,7 +91,7 @@ type Verification struct {
 
 // CutReport — submitted by tree owner when a verified tree is physically cut
 type CutReport struct {
-	ID               uuid.UUID  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID               uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
 	TreeID           string     `gorm:"not null;unique" json:"tree_id"`
 	Tree             Tree       `gorm:"foreignKey:TreeID;references:TreeID" json:"tree"`
 	OwnerWallet      string     `gorm:"not null" json:"owner_wallet"`
@@ -108,7 +108,7 @@ type CutReport struct {
 
 // EnvironmentalLoss — auto-calculated when admin confirms a cut
 type EnvironmentalLoss struct {
-	ID                     uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID                     uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	TreeID                 string    `gorm:"not null" json:"tree_id"`
 	CutReportID            uuid.UUID `json:"cut_report_id"`
 	CO2LostKg              float64   `json:"co2_lost_kg"`
@@ -120,7 +120,7 @@ type EnvironmentalLoss struct {
 
 // ReplantationDebt — tracks how many replacement trees must be planted
 type ReplantationDebt struct {
-	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	OriginalTreeID string    `gorm:"not null" json:"original_tree_id"`
 	OwnerWallet    string    `gorm:"not null" json:"owner_wallet"`
 	TreesNeeded    int       `gorm:"not null" json:"trees_needed"`
@@ -138,7 +138,7 @@ type ReplantationDebt struct {
 
 // ReplacementTree — links a newly planted tree to a replantation debt
 type ReplacementTree struct {
-	ID       uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID       uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	DebtID   uuid.UUID `gorm:"not null" json:"debt_id"`
 	TreeID   string    `gorm:"not null" json:"tree_id"`
 	LinkedAt time.Time `json:"linked_at"`
@@ -146,7 +146,7 @@ type ReplacementTree struct {
 
 // CompensationRecord — legacy table, retained for DB compatibility
 type CompensationRecord struct {
-	ID                uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID                uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	CutTreeID         uuid.UUID `json:"cut_tree_id"`
 	ReplacementTreeID uuid.UUID `json:"replacement_tree_id"`
 	Status            string    `gorm:"default:'pending'" json:"status"`
@@ -154,7 +154,7 @@ type CompensationRecord struct {
 }
 
 type RestorationCertificate struct {
-	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	CertificateID  string    `gorm:"unique;not null" json:"certificate_id"` // "CERT-2024-001"
 	DebtID         uuid.UUID `gorm:"not null" json:"debt_id"`
 	IssuedTo       string    `gorm:"not null" json:"issued_to"` // owner wallet
@@ -165,7 +165,7 @@ type RestorationCertificate struct {
 }
 
 type ActivityLog struct {
-	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	EventType   string    `json:"event_type"` // TREE_PLANTED/TREE_VERIFIED/TREE_CUT/DEBT_CLEARED/CERT_ISSUED
 	TreeID      string    `json:"tree_id"`
 	DebtID      *uuid.UUID `gorm:"type:uuid" json:"debt_id"`
@@ -175,7 +175,7 @@ type ActivityLog struct {
 }
 
 type MarketplaceListing struct {
-	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	SellerWallet   string    `gorm:"not null" json:"seller_wallet"`
 	TreeID         string    `gorm:"not null" json:"tree_id"`
 	Tree           Tree      `gorm:"foreignKey:TreeID;references:TreeID" json:"tree"`
@@ -190,7 +190,7 @@ type MarketplaceListing struct {
 }
 
 type MarketplaceTransaction struct {
-	ID                uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID                uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	ListingID         uuid.UUID `json:"listing_id"`
 	BuyerWallet       string    `gorm:"not null" json:"buyer_wallet"`
 	SellerWallet      string    `gorm:"not null" json:"seller_wallet"`
@@ -208,7 +208,7 @@ type MarketplaceTransaction struct {
 }
 
 type CreditLedger struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	Wallet       string    `gorm:"not null;index" json:"wallet"`
 	TreeID       string    `json:"tree_id"`
 	EventType    string    `json:"event_type"` // EARNED/LISTED/UNLISTED/SOLD/BOUGHT/FROZEN/UNFROZEN
