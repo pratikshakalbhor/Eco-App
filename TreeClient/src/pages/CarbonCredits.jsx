@@ -61,11 +61,21 @@ export default function CarbonAccountability() {
   const [balances, setBalances] = useState({ eco: '0.00', carbon: '0.00' });
   const [ledgerFilter, setLedgerFilter] = useState('all');
 
-  // ── API Data ───────────────────────────────────────────────────────────────
+  // ── API Data — aggregated user carbon stats ─────────────────────────────
   const { data, isLoading } = useQuery({
     queryKey: ['carbon-credits'],
     queryFn: async () => {
       const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits`);
+      return data;
+    },
+    staleTime: 60_000,
+  });
+
+  // ── Credit History from ledger ──────────────────────────────────────────
+  const { data: ledgerHistory = [] } = useQuery({
+    queryKey: ['credit-history'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/history`);
       return data;
     },
     staleTime: 60_000,
@@ -99,8 +109,10 @@ export default function CarbonAccountability() {
     active_trees = 0, cut_trees = 0, replacement_trees = 0,
     co2_stats = {}, oxygen_stats = {},
     sustainability_score = 0, carbon_balance = 0,
-    history = [] 
   } = data || {};
+
+  // Use ledgerHistory from dedicated /api/credits/history endpoint
+  const history = ledgerHistory;
 
   const netBalance = (credits_earned - credits_lost).toFixed(2);
   const totalCO2 = (co2_stats.total_absorbed || 0).toFixed(2);
@@ -559,8 +571,143 @@ export default function CarbonAccountability() {
           </motion.div>
         </section>
 
+        {/* ═══════════════ CARBON BURN / REDEMPTION ═══════════════ */}
+        <CarbonBurnSection />
+
       </div>
     </div>
+  );
+}
+
+// ── Carbon Burn Section ────────────────────────────────────────────────────────
+function CarbonBurnSection() {
+  const [amount, setAmount] = React.useState('');
+  const [purpose, setPurpose] = React.useState('');
+  const [txHash, setTxHash] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [result, setResult] = React.useState(null);
+  const [error, setError] = React.useState('');
+  const queryClient = window.__queryClient; // fallback; normally use useQueryClient
+
+  const handleBurn = async () => {
+    if (!amount || parseFloat(amount) <= 0) { setError('Enter a valid amount'); return; }
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const { default: axios } = await import('axios');
+      const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/credits/burn`, {
+        amount: parseFloat(amount),
+        purpose: purpose || 'Carbon Offset',
+        tx_hash: txHash,
+      });
+      setResult(data);
+      setAmount(''); setPurpose(''); setTxHash('');
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Burn failed. Check your available balance.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 bg-orange-100 rounded-xl">
+          <span className="text-orange-600 text-base font-black">🔥</span>
+        </div>
+        <div>
+          <h2 className="text-lg font-black text-slate-900 tracking-tight">Carbon Credit Burn & Redemption</h2>
+          <p className="text-[10px] text-slate-400 font-bold">Burn credits to permanently offset CO₂ — generates an on-chain proof of offset</p>
+        </div>
+      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-orange-50"
+      >
+        <div className="grid lg:grid-cols-2 gap-10">
+          <div className="space-y-5">
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Credits to Burn (tCO₂e)</p>
+              <input
+                type="number" min="0.001" step="0.001"
+                placeholder="0.000"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                className="w-full h-14 px-6 bg-orange-50 border-2 border-orange-100 rounded-2xl text-2xl font-black text-slate-900 focus:outline-none focus:border-orange-400 transition-all"
+              />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Offset Purpose</p>
+              <input
+                type="text"
+                placeholder="e.g. Manufacturing offset, Event carbon neutral..."
+                value={purpose}
+                onChange={e => setPurpose(e.target.value)}
+                className="w-full h-12 px-6 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200 transition-all"
+              />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">On-chain Transaction Hash (optional)</p>
+              <input
+                type="text"
+                placeholder="0x... (from EcoToken.burn() on Sepolia)"
+                value={txHash}
+                onChange={e => setTxHash(e.target.value)}
+                className="w-full h-12 px-5 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-mono text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-200 transition-all"
+              />
+            </div>
+            {error && (
+              <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-sm font-bold text-rose-700">{error}</div>
+            )}
+            <button
+              onClick={handleBurn}
+              disabled={loading || !amount}
+              className="w-full h-14 bg-orange-600 hover:bg-orange-700 disabled:opacity-40 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-orange-200 transition-all"
+            >
+              {loading ? 'Processing Burn...' : `Burn ${amount || '0'} Credits for CO₂ Offset`}
+            </button>
+          </div>
+
+          <div className="space-y-5">
+            {result ? (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                className="bg-emerald-50 border border-emerald-100 rounded-[2rem] p-8 space-y-4"
+              >
+                <div className="flex items-center gap-3 text-emerald-700 font-black">
+                  <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-white">✓</div>
+                  Carbon Offset Confirmed
+                </div>
+                <div className="text-4xl font-black text-emerald-700">{result.amount_burned} tCO₂e</div>
+                <p className="text-sm text-emerald-600 font-bold">{result.purpose}</p>
+                <div className="pt-4 border-t border-emerald-100 space-y-1">
+                  <p className="text-[10px] text-emerald-600 font-bold">Remaining Balance: <strong>{result.remaining_balance?.toFixed(4)} ECO</strong></p>
+                  {result.tx_hash && (
+                    <a href={`https://sepolia.etherscan.io/tx/${result.tx_hash}`} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-black hover:underline"
+                    >
+                      View burn on Sepolia Etherscan →
+                    </a>
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              <div className="bg-slate-50 rounded-[2rem] p-8 border border-dashed border-slate-200 space-y-4">
+                <h4 className="text-sm font-black text-slate-900">How Carbon Burning Works</h4>
+                <div className="space-y-3 text-xs text-slate-500 font-bold">
+                  <p>1. Enter the amount of ECO credits you want to burn (minimum 0.001)</p>
+                  <p>2. Optionally provide the on-chain tx hash from calling <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">EcoToken.burn()</code> on Sepolia</p>
+                  <p>3. Each credit burned offsets 1 tonne of CO₂ permanently</p>
+                  <p>4. A redemption record is created in the carbon ledger</p>
+                </div>
+                <div className="p-4 bg-orange-50 border border-orange-100 rounded-2xl">
+                  <p className="text-[10px] font-black text-orange-700 uppercase tracking-widest mb-1">Important</p>
+                  <p className="text-[11px] text-orange-600">Burning is irreversible. Credits will be permanently deducted from your balance.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </section>
   );
 }
 

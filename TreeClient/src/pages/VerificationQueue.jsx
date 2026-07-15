@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
-import { verifyTreeOnChain } from '../utils/web3Service';
+import { verifyTreeOnChain, confirmTreeCutOnChain, createReplantationDebtOnChain } from '../utils/web3Service';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AUDIT_STATUSES = [
@@ -49,14 +49,16 @@ export default function UnifiedVerificationHub() {
   });
 
   const verifyTreeMutation = useMutation({
-    mutationFn: async ({ id, status, notes, tokenId }) => {
+    mutationFn: async ({ id, status, notes, tokenId, absorptionRate }) => {
       // 1. If verifying, do blockchain transaction first
       if (status === 'VERIFIED' && tokenId) {
         try {
-          await verifyTreeOnChain(tokenId);
+          const carbonScoreInt = Math.round((absorptionRate || 18.5) * 100);
+          console.log(`Verifying Tree on-chain. Token: ${tokenId}, Carbon Score (Int): ${carbonScoreInt}`);
+          await verifyTreeOnChain(tokenId, carbonScoreInt);
         } catch (err) {
           console.error("Blockchain verification failed:", err);
-          throw new Error("Blockchain transaction failed. Verification not recorded.");
+          throw new Error("Blockchain verification failed: " + err.message);
         }
       }
       
@@ -70,7 +72,23 @@ export default function UnifiedVerificationHub() {
   });
 
   const confirmCutMutation = useMutation({
-    mutationFn: async ({ treeId, approved }) => {
+    mutationFn: async ({ treeId, approved, tokenId, ownerWallet, originalDate }) => {
+      if (approved && tokenId) {
+        try {
+          // Calculate replacements needed on-chain: max(3, ceil(yearsLived / 2))
+          const yearsLived = (Date.now() - new Date(originalDate).getTime()) / (1000 * 60 * 60 * 24 * 365);
+          const replacementsNeeded = Math.max(3, Math.ceil(yearsLived / 2));
+
+          console.log(`Confirming tree cut on-chain. Token: ${tokenId}`);
+          await confirmTreeCutOnChain(tokenId);
+
+          console.log(`Registering replantation debt on-chain. Token: ${tokenId}, Debtor: ${ownerWallet}, Replacements: ${replacementsNeeded}`);
+          await createReplantationDebtOnChain(tokenId, ownerWallet, replacementsNeeded);
+        } catch (err) {
+          console.error("Blockchain cut confirmation failed:", err);
+          throw new Error("Blockchain cut confirmation failed: " + err.message);
+        }
+      }
       const endpoint = approved ? 'confirm' : 'reject';
       await axios.post(`${import.meta.env.VITE_API_URL}/api/trees/${treeId}/cut/${endpoint}`);
     },
@@ -277,7 +295,12 @@ export default function UnifiedVerificationHub() {
                                         {activeStatus === 'PENDING_VERIFICATION' && (
                                             <div className="flex gap-2">
                                                 <button 
-                                                    onClick={() => verifyTreeMutation.mutate({id: item.id, status: 'VERIFIED', tokenId: item.blockchain_token_id})}
+                                                    onClick={() => verifyTreeMutation.mutate({
+                                                      id: item.id, 
+                                                      status: 'VERIFIED', 
+                                                      tokenId: item.blockchain_token_id,
+                                                      absorptionRate: item.carbon_absorption_rate
+                                                    })}
                                                     className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
                                                     title="Approve"
                                                 >
@@ -296,7 +319,13 @@ export default function UnifiedVerificationHub() {
                                         {activeStatus === 'CUT_REPORTS' && (
                                             <div className="flex gap-2">
                                                 <button 
-                                                    onClick={() => confirmCutMutation.mutate({treeId: item.tree_id, approved: true})}
+                                                    onClick={() => confirmCutMutation.mutate({
+                                                      treeId: item.tree_id, 
+                                                      approved: true,
+                                                      tokenId: item.tree?.blockchain_token_id || item.blockchain_token_id,
+                                                      ownerWallet: item.owner_wallet,
+                                                      originalDate: item.tree?.planting_date || item.planting_date
+                                                    })}
                                                     className="w-10 h-10 bg-orange-100 text-orange-700 rounded-xl flex items-center justify-center hover:bg-orange-600 hover:text-white transition-all shadow-sm"
                                                     title="Confirm Cut"
                                                 >
@@ -408,7 +437,12 @@ export default function UnifiedVerificationHub() {
                                 {selectedAsset.status === 'PENDING_VERIFICATION' && (
                                     <div className="pt-10 border-t border-slate-100 flex flex-col sm:flex-row gap-4">
                                         <Button 
-                                            onClick={() => verifyTreeMutation.mutate({id: selectedAsset.id, status: 'VERIFIED'})}
+                                            onClick={() => verifyTreeMutation.mutate({
+                                              id: selectedAsset.id, 
+                                              status: 'VERIFIED',
+                                              tokenId: selectedAsset.blockchain_token_id,
+                                              absorptionRate: selectedAsset.carbon_absorption_rate
+                                            })}
                                             className="flex-1 h-16 bg-emerald-600 hover:bg-emerald-700 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-emerald-200"
                                         >
                                             Approve Asset
@@ -426,7 +460,13 @@ export default function UnifiedVerificationHub() {
                                 {selectedAsset.cut_report && selectedAsset.cut_report.status === 'PENDING' && (
                                     <div className="pt-10 border-t border-slate-100 flex flex-col sm:flex-row gap-4">
                                         <Button 
-                                            onClick={() => confirmCutMutation.mutate({treeId: selectedAsset.tree_id, approved: true})}
+                                            onClick={() => confirmCutMutation.mutate({
+                                              treeId: selectedAsset.tree_id, 
+                                              approved: true,
+                                              tokenId: selectedAsset.blockchain_token_id || selectedAsset.tree?.blockchain_token_id,
+                                              ownerWallet: selectedAsset.owner_wallet || selectedAsset.cut_report.owner_wallet,
+                                              originalDate: selectedAsset.planting_date || selectedAsset.tree?.planting_date
+                                            })}
                                             className="flex-1 h-16 bg-orange-600 hover:bg-orange-700 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-orange-200"
                                         >
                                             Confirm Cut

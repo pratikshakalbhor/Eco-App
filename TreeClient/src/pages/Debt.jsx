@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useNavigate } from 'react-router-dom';
+import { findDebtIdForOriginalTree, linkReplacementTreeOnChain } from '../utils/web3Service';
 
 export default function Debt() {
   const [activeTab, setActiveTab] = useState('active'); // active | cleared
@@ -37,8 +38,27 @@ export default function Debt() {
   });
 
   const linkTreeMutation = useMutation({
-    mutationFn: async ({ debtId, treeId }) => {
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/debt/${debtId}/link-tree`, { tree_id: treeId });
+    mutationFn: async ({ debtDbId, originalTreeId, replacementTreeId, replacementTokenId, ownerWallet }) => {
+      // 1. Fetch original tree to get its blockchain token ID
+      const { data: origTree } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/${originalTreeId}`);
+      if (!origTree || !origTree.blockchain_token_id) {
+        throw new Error("Original tree blockchain token not found");
+      }
+      
+      const origTokenId = origTree.blockchain_token_id;
+
+      // 2. Find the on-chain debt ID
+      const onChainDebtId = await findDebtIdForOriginalTree(ownerWallet, origTokenId);
+      if (!onChainDebtId) {
+        throw new Error("No matching replantation debt found on-chain for tree " + originalTreeId);
+      }
+
+      // 3. Link replacement tree on-chain
+      console.log(`Linking replacement token ${replacementTokenId} to debt ${onChainDebtId} on-chain`);
+      await linkReplacementTreeOnChain(onChainDebtId, replacementTokenId);
+
+      // 4. Update the backend GORM database
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/debt/${debtDbId}/link-tree`, { tree_id: replacementTreeId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['my-debts']);
@@ -151,7 +171,13 @@ export default function Debt() {
                   {availableTrees.map(tree => (
                     <button 
                       key={tree.id}
-                      onClick={() => linkTreeMutation.mutate({ debtId: isLinking, treeId: tree.tree_id })}
+                      onClick={() => linkTreeMutation.mutate({ 
+                        debtDbId: isLinking, 
+                        originalTreeId: debts.find(d => d.id === isLinking)?.original_tree_id,
+                        replacementTreeId: tree.tree_id,
+                        replacementTokenId: tree.blockchain_token_id,
+                        ownerWallet: tree.owner_wallet
+                      })}
                       disabled={linkTreeMutation.isLoading}
                       className="flex items-center justify-between p-6 bg-white border border-slate-100 rounded-3xl hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/5 transition-all text-left group"
                     >

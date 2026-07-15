@@ -79,9 +79,9 @@ const MapPage = () => {
                        (tree.latitude !== 0 || tree.longitude !== 0);
       
       const statusMatch = filter === "all" || 
-                         (filter === "verified" && tree.status === 'verified' && !tree.is_cut) ||
-                         (filter === "cut" && tree.is_cut) ||
-                         (filter === "pending" && tree.status === 'pending');
+                         (filter === "verified" && (tree.status?.toUpperCase() === 'VERIFIED' || tree.status?.toUpperCase() === 'APPROVED')) ||
+                         (filter === "cut" && (tree.status?.toUpperCase() === 'CUT_CONFIRMED' || tree.status?.toUpperCase() === 'CUT_REPORTED')) ||
+                         (filter === "pending" && (tree.status?.toUpperCase() === 'PENDING_VERIFICATION' || tree.status?.toUpperCase() === 'PENDING'));
       
       return hasCoords && statusMatch && tree.species.toLowerCase().includes(search.toLowerCase());
     });
@@ -294,8 +294,8 @@ const MapPage = () => {
               key={tree.id}
               position={[tree.latitude, tree.longitude]}
               icon={
-                tree.is_cut ? createCustomIcon('#f43f5e', 'scissors', selectedTree?.id === tree.id) : 
-                tree.status === 'verified' || tree.status === 'approved' ? createCustomIcon('#10b981', 'leaf', selectedTree?.id === tree.id) :
+                (tree.status?.toUpperCase() === 'CUT_CONFIRMED' || tree.status?.toUpperCase() === 'CUT_REPORTED') ? createCustomIcon('#f43f5e', 'scissors', selectedTree?.id === tree.id) : 
+                (tree.status?.toUpperCase() === 'VERIFIED' || tree.status?.toUpperCase() === 'APPROVED' || tree.status?.toUpperCase() === 'REPLANTED') ? createCustomIcon('#10b981', 'leaf', selectedTree?.id === tree.id) :
                 createCustomIcon('#64748b', 'shield', selectedTree?.id === tree.id)
               }
               eventHandlers={{

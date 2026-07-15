@@ -4,6 +4,7 @@ import EcoTokenABI from "../contracts/EcoToken.json";
 import CarbonCreditABI from "../contracts/CarbonCredit.json";
 import EcoTreeABI from "../contracts/EcoTree.json";
 import TreeCuttingReportABI from "../contracts/TreeCuttingReport.json";
+import ReplantationRegistryABI from "../contracts/ReplantationRegistry.json";
 
 // ─── Contract Addresses from Environment ────────────────────────────────────
 const CONTRACT_ADDRESSES = {
@@ -12,6 +13,7 @@ const CONTRACT_ADDRESSES = {
   ecoTree: import.meta.env.VITE_ECO_TREE,
   treeCuttingReport: import.meta.env.VITE_TREE_CUTTING_REPORT,
   ecoChainTree: import.meta.env.VITE_ECO_CHAIN_TREE,
+  replantationRegistry: import.meta.env.VITE_REPLANTATION_REGISTRY,
 };
 
 // ─── Sepolia Network Config ─────────────────────────────────────────────────
@@ -172,6 +174,7 @@ export const getContract = (contractName, signer) => {
     ecoTree: EcoTreeABI.abi,
     treeCuttingReport: TreeCuttingReportABI.abi,
     ecoChainTree: EcoChainTreeABI.abi,
+    replantationRegistry: ReplantationRegistryABI.abi,
   };
 
   const address = CONTRACT_ADDRESSES[contractName];
@@ -227,11 +230,75 @@ export const registerTreeOnChain = async (planterAddress, ipfsHash, metadataURI)
 /**
  * Verify a tree on-chain (EcoChainTree — verifier role required).
  */
-export const verifyTreeOnChain = async (tokenId) => {
+export const verifyTreeOnChain = async (tokenId, carbonScore = 1850) => {
   const { signer } = await connectWallet();
   const contract = getContract("ecoChainTree", signer);
 
-  const tx = await contract.verifyTree(tokenId);
+  const tx = await contract.verifyTree(tokenId, carbonScore);
+  const receipt = await tx.wait();
+  return { receipt, txHash: receipt.hash };
+};
+
+/**
+ * Confirm a tree cut on-chain (EcoChainTree — verifier role required).
+ */
+export const confirmTreeCutOnChain = async (tokenId) => {
+  const { signer } = await connectWallet();
+  const contract = getContract("ecoChainTree", signer);
+
+  const tx = await contract.confirmCut(tokenId);
+  const receipt = await tx.wait();
+  return { receipt, txHash: receipt.hash };
+};
+
+/**
+ * Create replantation debt record on-chain (ReplantationRegistry).
+ */
+export const createReplantationDebtOnChain = async (originalTokenId, debtorAddress, replacementsNeeded) => {
+  const { signer } = await connectWallet();
+  const contract = getContract("replantationRegistry", signer);
+
+  const tx = await contract.createDebt(originalTokenId, debtorAddress, replacementsNeeded);
+  const receipt = await tx.wait();
+  
+  // Extract debtId from DebtCreated event
+  const event = receipt.logs
+    .map((log) => {
+      try {
+        return contract.interface.parseLog(log);
+      } catch {
+        return null;
+      }
+    })
+    .find((parsedLog) => parsedLog && parsedLog.name === "DebtCreated");
+
+  return { 
+    receipt, 
+    txHash: receipt.hash,
+    debtId: event ? event.args.debtId.toString() : null
+  };
+};
+
+/**
+ * Link a replacement tree to a debt on-chain (ReplantationRegistry).
+ */
+export const linkReplacementTreeOnChain = async (debtId, replacementTokenId) => {
+  const { signer } = await connectWallet();
+  const contract = getContract("replantationRegistry", signer);
+
+  const tx = await contract.linkReplacement(debtId, replacementTokenId);
+  const receipt = await tx.wait();
+  return { receipt, txHash: receipt.hash };
+};
+
+/**
+ * Clear a replantation debt on-chain (ReplantationRegistry).
+ */
+export const clearDebtOnChain = async (debtId, certificateURI = "") => {
+  const { signer } = await connectWallet();
+  const contract = getContract("replantationRegistry", signer);
+
+  const tx = await contract.clearDebt(debtId, certificateURI);
   const receipt = await tx.wait();
   return { receipt, txHash: receipt.hash };
 };
@@ -290,6 +357,21 @@ export const getCarbonCreditBalance = async (address) => {
 export const getEcoTreeBalance = async (address) => {
   const contract = await getReadOnlyContract("ecoTree");
   return (await contract.balanceOf(address)).toString();
+};
+
+/**
+ * Find the on-chain debt ID for a given user wallet and original tree token ID.
+ */
+export const findDebtIdForOriginalTree = async (userAddress, originalTokenId) => {
+  const contract = await getReadOnlyContract("replantationRegistry");
+  const debtIds = await contract.getUserDebts(userAddress);
+  for (const debtId of debtIds) {
+    const debt = await contract.debts(debtId);
+    if (debt.originalTokenId.toString() === originalTokenId.toString()) {
+      return debtId.toString();
+    }
+  }
+  return null;
 };
 
 // ─── Utility Exports ────────────────────────────────────────────────────────
