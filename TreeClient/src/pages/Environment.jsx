@@ -44,11 +44,12 @@ export default function Environment() {
     }
   });
 
-  // Fetch All Active Debts (Demo View)
   const { data: activeDebts } = useQuery({
     queryKey: ['all-active-debts'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/debt/all`);
+      const token = localStorage.getItem('eco_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/debt/all`, { headers });
       return data;
     }
   });
