@@ -73,8 +73,10 @@ const MapPage = () => {
     retry: 1,
   });
 
+  const treesList = Array.isArray(trees) ? trees : [];
+
   const filteredTrees = React.useMemo(() => {
-    return trees.filter((tree) => {
+    return treesList.filter((tree) => {
       const hasCoords = tree.latitude !== undefined && tree.longitude !== undefined && 
                        (tree.latitude !== 0 || tree.longitude !== 0);
       
@@ -83,9 +85,9 @@ const MapPage = () => {
                          (filter === "cut" && (tree.status?.toUpperCase() === 'CUT_CONFIRMED' || tree.status?.toUpperCase() === 'CUT_REPORTED')) ||
                          (filter === "pending" && (tree.status?.toUpperCase() === 'PENDING_VERIFICATION' || tree.status?.toUpperCase() === 'PENDING'));
       
-      return hasCoords && statusMatch && tree.species.toLowerCase().includes(search.toLowerCase());
+      return hasCoords && statusMatch && tree.species?.toLowerCase().includes(search.toLowerCase());
     });
-  }, [trees, filter, search]);
+  }, [treesList, filter, search]);
 
   const handleImageError = (e) => {
     e.target.src = "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&q=80&w=100";
@@ -188,7 +190,7 @@ const MapPage = () => {
                 <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Assets On Map</p>
                 <div className="flex items-end gap-2">
                     <span className="text-3xl font-black text-slate-900">{filteredTrees.length}</span>
-                    <span className="text-[10px] font-bold text-emerald-500 mb-1">+{trees.length - filteredTrees.length} Hidden</span>
+                    <span className="text-[10px] font-bold text-emerald-500 mb-1">+{treesList.length - filteredTrees.length} Hidden</span>
                 </div>
             </div>
             <div className="bg-white/90 backdrop-blur-xl p-5 rounded-[2rem] border border-white/20 shadow-xl">
