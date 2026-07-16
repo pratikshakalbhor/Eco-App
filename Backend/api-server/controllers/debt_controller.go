@@ -238,7 +238,7 @@ func LinkTreeToDebt(c *gin.Context) {
 
 // GetAllDebts — GET /api/debt/all (admin only)
 func GetAllDebts(c *gin.Context) {
-	var debts []models.ReplantationDebt
+	debts := make([]models.ReplantationDebt, 0)
 
 	if err := config.DB.
 		Preload("ReplacementTrees").
