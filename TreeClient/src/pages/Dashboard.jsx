@@ -323,7 +323,7 @@ export default function EcoChainDashboard() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-2 bg-white rounded-3xl p-8 border border-emerald-50 shadow-sm">
                 <SectionHeader icon={TrendingUp} title="Registry Progression" subtitle="Total assets vs Verified milestones" />
                 <div className="h-[300px] min-h-[300px] w-full">
-                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                   <ResponsiveContainer width="99%" height={300}>
                       <AreaChart data={[
                         { name: 'Jan', total: 0, verified: 0 },
                         { name: 'Feb', total: Math.floor(stats.total * 0.3), verified: Math.floor(stats.verified * 0.2) },
@@ -348,7 +348,7 @@ export default function EcoChainDashboard() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-8 border border-emerald-50 shadow-sm flex flex-col items-center">
                 <h3 className="text-sm font-black uppercase text-slate-400 mb-8 self-start">Distribution</h3>
                 <div className="h-[200px] min-h-[200px] w-full">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <ResponsiveContainer width="99%" height={200}>
                         <PieChart>
                             <Pie data={pieData.length ? pieData : [{name: 'Empty', value: 1}]} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                                 {pieData.map((entry, index) => <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
