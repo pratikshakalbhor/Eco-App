@@ -48,6 +48,7 @@ func SetupRoutes(r *gin.Engine) {
 
 			// ── Replantation Debt ────────────────────────
 			protected.GET("/debt", controllers.GetMyDebts)
+			protected.GET("/debt/all", controllers.GetAllDebts)
 			protected.GET("/debt/:id", controllers.GetDebtByID)
 			protected.POST("/debt/:id/link-tree", controllers.LinkTreeToDebt)
 			protected.GET("/debt/:id/certificate", controllers.GetCertificateData)
@@ -62,7 +63,6 @@ func SetupRoutes(r *gin.Engine) {
 				verifier.POST("/trees/:id/verify", controllers.VerifyTree)
 				verifier.POST("/trees/:id/cut/confirm", controllers.ConfirmCut)
 				verifier.POST("/trees/:id/cut/reject", controllers.RejectCut)
-				verifier.GET("/debt/all", controllers.GetAllDebts)
 			}
 
 			// ── Marketplace ──────────────────────────────
