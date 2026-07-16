@@ -109,7 +109,7 @@ func GetTreeHistory(c *gin.Context) {
 // GetTreeAllPublic — GET /api/trees/all
 // Returns all trees with coordinates for the Map (public - no auth required).
 func GetTreeAllPublic(c *gin.Context) {
-	var trees []models.Tree
+	trees := make([]models.Tree, 0)
 	status := c.Query("status")
 	species := c.Query("species")
 
@@ -228,7 +228,7 @@ func GetAdminStats(c *gin.Context) {
 
 // GetAllUsers — GET /api/admin/users
 func GetAllUsers(c *gin.Context) {
-	var users []models.User
+	users := make([]models.User, 0)
 	config.DB.Select("id, wallet_address, full_name, role, xp_points, created_at").Find(&users)
 	c.JSON(http.StatusOK, users)
 }
