@@ -168,7 +168,9 @@ export default function RedesignedPlantTree() {
         replanted_debt_id: debtId || "",
       };
 
-      const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/trees`, payload);
+      const token = localStorage.getItem('eco_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/trees`, payload, { headers });
       
       // 3. Link to debt if applicable (backend handles some but good to be explicit or let backend do it)
       // The backend RegisterTree handles the debt linking if ReplantedDebtID is provided.
