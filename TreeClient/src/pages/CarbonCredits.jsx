@@ -65,7 +65,9 @@ export default function CarbonAccountability() {
   const { data, isLoading } = useQuery({
     queryKey: ['carbon-credits'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits`);
+      const token = localStorage.getItem('eco_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits`, { headers });
       return data;
     },
     staleTime: 60_000,
@@ -75,7 +77,9 @@ export default function CarbonAccountability() {
   const { data: ledgerHistory = [] } = useQuery({
     queryKey: ['credit-history'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/history`);
+      const token = localStorage.getItem('eco_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/history`, { headers });
       return data;
     },
     staleTime: 60_000,
@@ -590,15 +594,18 @@ function CarbonBurnSection() {
   const queryClient = window.__queryClient; // fallback; normally use useQueryClient
 
   const handleBurn = async () => {
-    if (!amount || parseFloat(amount) <= 0) { setError('Enter a valid amount'); return; }
+    const val = parseFloat(amount);
+    if (!amount || isNaN(val) || val <= 0) { setError('Enter a valid amount'); return; }
     setLoading(true); setError(''); setResult(null);
     try {
       const { default: axios } = await import('axios');
+      const token = localStorage.getItem('eco_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/credits/burn`, {
-        amount: parseFloat(amount),
+        amount: val,
         purpose: purpose || 'Carbon Offset',
         tx_hash: txHash,
-      });
+      }, { headers });
       setResult(data);
       setAmount(''); setPurpose(''); setTxHash('');
     } catch (err) {
