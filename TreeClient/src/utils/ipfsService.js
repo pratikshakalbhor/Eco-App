@@ -8,8 +8,14 @@ export const uploadToIPFS = async (file) => {
     let data = new FormData();
     data.append('file', file);
 
+    const token = localStorage.getItem('eco_token');
+    const headers = {};
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     try {
-        const response = await axios.post(url, data);
+        const response = await axios.post(url, data, { headers });
         
         return {
             hash: response.data.ipfs_hash,
