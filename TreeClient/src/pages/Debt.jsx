@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/Badge';
 import { useNavigate } from 'react-router-dom';
 import { findDebtIdForOriginalTree, linkReplacementTreeOnChain } from '../utils/web3Service';
 
+const cleanImageUrl = (url) => (url && typeof url === 'string' && !url.startsWith('blob:') ? url : '/placeholder-tree.jpg');
+
 export default function Debt() {
   const [activeTab, setActiveTab] = useState('active'); // active | cleared
   const [isLinking, setIsLinking] = useState(null); // debt_id
@@ -182,7 +184,7 @@ export default function Debt() {
                       className="flex items-center justify-between p-6 bg-white border border-slate-100 rounded-3xl hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/5 transition-all text-left group"
                     >
                       <div className="flex items-center gap-4">
-                        <img src={tree.image_url} className="w-14 h-14 rounded-2xl object-cover" />
+                        <img src={cleanImageUrl(tree.image_url)} className="w-14 h-14 rounded-2xl object-cover" />
                         <div>
                           <p className="text-sm font-black text-slate-900 uppercase">{tree.species}</p>
                           <p className="text-[10px] font-mono text-slate-400">{tree.tree_id}</p>

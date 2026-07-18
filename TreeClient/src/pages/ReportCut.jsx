@@ -11,6 +11,8 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
+const cleanImageUrl = (url) => (url && typeof url === 'string' && !url.startsWith('blob:') ? url : '/placeholder-tree.jpg');
+
 const REASONS = [
   { value: 'Storm', label: '🌪️ Storm Damage' },
   { value: 'Construction', label: '🏗️ Construction / Development' },
@@ -186,7 +188,7 @@ export default function ReportCut() {
         {tree && (
           <div className="flex items-center gap-5 bg-white border border-amber-100 rounded-3xl p-5 shadow-sm">
             <img
-              src={tree.image_url || '/placeholder-tree.jpg'}
+              src={cleanImageUrl(tree.image_url)}
               className="w-16 h-16 rounded-2xl object-cover shrink-0"
               alt={tree.species}
             />
