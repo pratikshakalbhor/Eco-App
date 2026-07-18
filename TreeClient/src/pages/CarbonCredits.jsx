@@ -197,11 +197,9 @@ export default function CarbonAccountability() {
             <div className="flex items-center gap-8">
               <div className="text-center">
                 <div className="relative w-28 h-28">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadialBarChart innerRadius={38} outerRadius={52} data={scoreData} startAngle={90} endAngle={-270}>
-                      <RadialBar dataKey="value" cornerRadius={10} fill={P.emerald} background={{ fill: '#1a4a30' }} />
-                    </RadialBarChart>
-                  </ResponsiveContainer>
+                  <RadialBarChart width={112} height={112} innerRadius={38} outerRadius={52} data={scoreData} startAngle={90} endAngle={-270}>
+                    <RadialBar dataKey="value" cornerRadius={10} fill={P.emerald} background={{ fill: '#1a4a30' }} />
+                  </RadialBarChart>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-xl font-black text-white">{Number(sustainability_score).toFixed(0)}</span>
                     <span className="text-[8px] text-emerald-400 font-black uppercase">Score</span>
