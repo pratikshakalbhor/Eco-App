@@ -23,11 +23,12 @@ func GetMarketplaceListings(c *gin.Context) {
 		query = query.Where("species = ?", species)
 	}
 
-	if sort == "price_asc" {
+	switch sort {
+	case "price_asc":
 		query = query.Order("price_per_credit asc")
-	} else if sort == "price_desc" {
+	case "price_desc":
 		query = query.Order("price_per_credit desc")
-	} else {
+	default:
 		query = query.Order("created_at desc")
 	}
 

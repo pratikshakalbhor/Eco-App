@@ -141,9 +141,10 @@ func VerifyTree(c *gin.Context) {
 	now := time.Now()
 	// Map status to uppercase as per requirements
 	status := "PENDING_VERIFICATION"
-	if input.Status == "approve" || input.Status == "VERIFIED" {
+	switch input.Status {
+	case "approve", "VERIFIED":
 		status = "VERIFIED"
-	} else if input.Status == "reject" || input.Status == "REJECTED" {
+	case "reject", "REJECTED":
 		status = "REJECTED"
 	}
 

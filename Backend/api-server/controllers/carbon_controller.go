@@ -61,12 +61,13 @@ func GetUserCarbonCredits(c *gin.Context) {
 	}
 
 	for _, tree := range trees {
-		if tree.Status == "VERIFIED" {
+		switch tree.Status {
+		case "VERIFIED":
 			activeTrees++
 			years := time.Since(tree.PlantedAt).Hours() / 24 / 365
 			totalCO2Absorption += tree.CarbonAbsorptionRate * years
 			totalOxygenGen += tree.CarbonAbsorptionRate * years * 1.5
-		} else if tree.Status == "CUT_CONFIRMED" {
+		case "CUT_CONFIRMED":
 			cutTrees++
 		}
 		if tree.IsReplacement {
