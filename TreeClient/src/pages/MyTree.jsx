@@ -22,6 +22,9 @@ const STATUS_CONFIG = {
   CUT_CONFIRMED:        { color: 'text-rose-800', bg: 'bg-rose-100', border: 'border-rose-300', icon: AlertCircle },
 };
 
+const cleanImageUrl = (url) => (url && typeof url === 'string' && !url.startsWith('blob:') ? url : '/placeholder-tree.jpg');
+
+
 export default function RedesignedMyTrees() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -217,7 +220,7 @@ const PremiumTreeCard = ({ tree, index, onClick }) => {
         >
             <div className="relative h-64 overflow-hidden">
                 <img 
-                    src={tree.image_url || '/placeholder-tree.jpg'} 
+                    src={cleanImageUrl(tree.image_url)} 
                     alt={tree.species}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 />
@@ -329,7 +332,7 @@ const TreeListItem = ({ tree, onClick }) => {
         >
             <div className="flex items-center gap-6">
                 <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-inner relative">
-                    <img src={tree.image_url} className="w-full h-full object-cover" alt="" />
+                    <img src={cleanImageUrl(tree.image_url)} className="w-full h-full object-cover" alt="" />
                     {(tree.status === 'CUT_REPORTED' || tree.status === 'CUT_CONFIRMED') && (
                         <div className="absolute inset-0 bg-rose-600/40 flex items-center justify-center">
                             <Axe className="w-6 h-6 text-white" />
@@ -360,7 +363,7 @@ const TreeListItem = ({ tree, onClick }) => {
             <div className="flex items-center gap-12 px-6 hidden lg:flex">
                 <div>
                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Planted</p>
-                    <p className="text-xs font-black text-slate-800">{new Date(tree.planting_date).toLocaleDateString()}</p>
+                    <p className="text-xs font-black text-slate-800">{new Date(tree.planted_at).toLocaleDateString()}</p>
                 </div>
                 <div>
                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Estimated Age</p>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import axios from 'axios';
+import { useAuth } from '../hooks/useAuth';
 import { 
   TreePine, MapPin, Calendar, Activity, 
   ShieldCheck, Clock, AlertCircle, ChevronLeft,
@@ -12,7 +13,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { useAuth } from '@/hooks/useAuth';
+const cleanImageUrl = (url) => (url && typeof url === 'string' && !url.startsWith('blob:') ? url : '/placeholder-tree.jpg');
+
 
 // Lifecycle steps definition
 const LIFECYCLE_STEPS = [
@@ -146,7 +148,7 @@ export default function TreeDetails() {
             {/* Image */}
             <div className="relative shrink-0">
               <img 
-                src={tree.image_url || '/placeholder-tree.jpg'} 
+                src={cleanImageUrl(tree.image_url)} 
                 className="w-40 h-40 lg:w-48 lg:h-48 rounded-[2rem] object-cover border-4 border-white/10 shadow-2xl" 
                 alt={tree.species}
               />
@@ -367,7 +369,7 @@ export default function TreeDetails() {
               <div className="grid grid-cols-2 gap-3">
                 <InfoCard icon={MapPin}    label="Location"      value={tree.location}                                                          />
                 <InfoCard icon={Globe}     label="Coordinates"   value={`${parseFloat(tree.latitude || 0).toFixed(4)}, ${parseFloat(tree.longitude || 0).toFixed(4)}`} />
-                <InfoCard icon={Calendar}  label="Planted"       value={new Date(tree.planting_date).toLocaleDateString()}                      />
+                <InfoCard icon={Calendar}  label="Planted"       value={new Date(tree.planted_at).toLocaleDateString()}                      />
                 <InfoCard icon={Tag}       label="Age"           value={`${tree.age || 0} Years`}                                              />
                 <InfoCard icon={Activity}  label="Health"        value={tree.health_status}                                                     />
                 <InfoCard icon={User}      label="Tree ID"       value={tree.tree_id}                                                           />

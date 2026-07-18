@@ -16,6 +16,8 @@ import { Input } from '@/components/ui/Input';
 import { verifyTreeOnChain, confirmTreeCutOnChain, createReplantationDebtOnChain } from '../utils/web3Service';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const cleanImageUrl = (url) => (url && typeof url === 'string' && !url.startsWith('blob:') ? url : '/placeholder-tree.jpg');
+
 const AUDIT_STATUSES = [
   { id: 'PENDING_VERIFICATION',  label: 'Pending Queue',  icon: Clock,         color: 'amber' },
   { id: 'VERIFIED',              label: 'Verified Trees', icon: CheckCircle2,  color: 'emerald' },
@@ -217,7 +219,7 @@ export default function UnifiedVerificationHub() {
                                  <TableCell className="py-6 pl-12">
                                     <div className="flex items-center gap-5">
                                         <div className="relative shrink-0">
-                                            <img src={(activeStatus === 'CUT_REPORTS' ? item.evidence_image_url : item.image_url) || '/placeholder-tree.jpg'} className="w-16 h-16 rounded-2xl object-cover shadow-inner" />
+                                            <img src={cleanImageUrl(activeStatus === 'CUT_REPORTS' ? item.evidence_image_url : item.image_url)} className="w-16 h-16 rounded-2xl object-cover shadow-inner" />
                                         </div>
                                         <div>
                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">ID / Ref</p>
@@ -270,7 +272,7 @@ export default function UnifiedVerificationHub() {
                                             <>
                                                 <div className="flex items-center gap-2">
                                                     <Calendar className="w-3 h-3 text-emerald-500" />
-                                                    <span className="text-[10px] font-bold text-slate-600 uppercase">Planted: <strong>{new Date(item.planting_date).toLocaleDateString()}</strong></span>
+                                                    <span className="text-[10px] font-bold text-slate-600 uppercase">Planted: <strong>{new Date(item.planted_at).toLocaleDateString()}</strong></span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <Activity className="w-3 h-3 text-sky-400" />
@@ -324,7 +326,7 @@ export default function UnifiedVerificationHub() {
                                                       approved: true,
                                                       tokenId: item.tree?.blockchain_token_id || item.blockchain_token_id,
                                                       ownerWallet: item.owner_wallet,
-                                                      originalDate: item.tree?.planting_date || item.planting_date
+                                                      originalDate: item.tree?.planted_at || item.planted_at
                                                     })}
                                                     className="w-10 h-10 bg-orange-100 text-orange-700 rounded-xl flex items-center justify-center hover:bg-orange-600 hover:text-white transition-all shadow-sm"
                                                     title="Confirm Cut"
@@ -398,7 +400,7 @@ export default function UnifiedVerificationHub() {
                         <div className="grid lg:grid-cols-5 gap-12">
                             <div className="lg:col-span-2 space-y-8">
                                 <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl group border-4 border-white">
-                                    <img src={(selectedAsset.cut_report ? selectedAsset.cut_report.evidence_image_url : selectedAsset.image_url) || '/placeholder-tree.jpg'} className="w-full aspect-[4/5] object-cover" />
+                                    <img src={cleanImageUrl(selectedAsset.cut_report ? selectedAsset.cut_report.evidence_image_url : selectedAsset.image_url)} className="w-full aspect-[4/5] object-cover" />
                                     {selectedAsset.cut_report && (
                                         <div className="absolute top-4 right-4 bg-orange-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl">
                                             Cut Evidence
@@ -407,7 +409,7 @@ export default function UnifiedVerificationHub() {
                                 </div>
                                 {selectedAsset.cut_report && (
                                     <div className="relative rounded-[2rem] overflow-hidden shadow-lg group border-2 border-slate-100 opacity-80">
-                                        <img src={selectedAsset.image_url || '/placeholder-tree.jpg'} className="w-full aspect-video object-cover" />
+                                        <img src={cleanImageUrl(selectedAsset.image_url)} className="w-full aspect-video object-cover" />
                                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                             <p className="text-white text-[10px] font-black uppercase tracking-widest">Original Record</p>
                                         </div>
@@ -428,7 +430,7 @@ export default function UnifiedVerificationHub() {
                                     <DetailBox label="Nickname" value={selectedAsset.nickname || 'N/A'} icon={Award} />
                                     <DetailBox label="Location" value={selectedAsset.location} icon={MapPin} />
                                     <DetailBox label="Coordinates" value={`${selectedAsset.latitude}, ${selectedAsset.longitude}`} icon={Globe} />
-                                    <DetailBox label="Planting Date" value={new Date(selectedAsset.planting_date).toLocaleDateString()} icon={Calendar} />
+                                    <DetailBox label="Planting Date" value={new Date(selectedAsset.planted_at).toLocaleDateString()} icon={Calendar} />
                                     <DetailBox label="Estimated Age" value={`${selectedAsset.age} Years`} icon={Clock} />
                                     <DetailBox label="Health Status" value={selectedAsset.health_status} icon={Activity} />
                                     <DetailBox label="Owner Wallet" value={selectedAsset.owner_wallet?.slice(0, 10) + '...'} icon={Users} />
@@ -465,7 +467,7 @@ export default function UnifiedVerificationHub() {
                                               approved: true,
                                               tokenId: selectedAsset.blockchain_token_id || selectedAsset.tree?.blockchain_token_id,
                                               ownerWallet: selectedAsset.owner_wallet || selectedAsset.cut_report.owner_wallet,
-                                              originalDate: selectedAsset.planting_date || selectedAsset.tree?.planting_date
+                                              originalDate: selectedAsset.planted_at || selectedAsset.tree?.planted_at
                                             })}
                                             className="flex-1 h-16 bg-orange-600 hover:bg-orange-700 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-orange-200"
                                         >

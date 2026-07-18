@@ -113,7 +113,7 @@ func GetTreeAllPublic(c *gin.Context) {
 	status := c.Query("status")
 	species := c.Query("species")
 
-	query := config.DB.Select("id, tree_id, species, status, health_status, latitude, longitude, location, image_url, ipfs_hash, owner_wallet, blockchain_token_id, carbon_absorption_rate, planting_date, is_replacement, created_at")
+	query := config.DB.Select("id, tree_id, species, status, health_status, latitude, longitude, location, image_url, ip_fs_hash, owner_wallet, blockchain_token_id, carbon_absorption_rate, planted_at, is_replacement, created_at")
 
 	if status != "" && status != "all" {
 		query = query.Where("status = ?", status)
