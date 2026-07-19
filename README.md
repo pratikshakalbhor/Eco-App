@@ -4,6 +4,19 @@ EcoChain is a Web3-native decentralized system for tree plantation lifecycle man
 
 ---
 
+## 🌍 Real-World Problems Solved
+
+Traditional carbon offsetting programs and tree plantation projects are plagued by transparency issues, double-counting, and poor long-term accountability. EcoChain addresses these issues directly:
+
+1. **Greenwashing & Lack of Biological Integrity**: Many companies pay for trees to be planted but have no proof of survival or correct geolocation. EcoChain utilizes a **Verifier Audit Protocol**—trees registered by users are audited by dedicated verifiers before carbon credits are minted.
+2. **Double-Counting & Fraud**: Carbon credits are often double-sold or counterfeited. EcoChain resolves this by logging transaction histories to an **immutable blockchain ledger using unique NFTs**, ensuring every credit can be tracked to its source and burnt exactly once of its ecological offset value.
+3. **Loss of Forest Cover & Deforestation**: If offset trees die or are illegally logged, carbon goals fail. EcoChain implements a **Replantation Debt Framework**:
+    * Tree-cut events are reported and validated using **GPS geo-fencing** (users must be within 100m of the registered tree's coordinate to report the cut).
+    * When confirmed, the exact **Environmental Loss (CO2 & Oxygen kg)** is computed.
+    * The tree owner is assigned a **Replantation Debt** (requiring them to plant $X$ replacement trees). The owner's carbon assets are frozen, and listings are canceled, until the replacement trees are verified by audits.
+
+---
+
 ## 🚀 Key Features
 
 * **Web3 Wallet Authentication**: Secure, EIP-191 personal sign-based MetaMask authentication flow.
