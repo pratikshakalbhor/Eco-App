@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import API_URL from "../utils/config.js";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { 
@@ -26,7 +27,7 @@ export default function Debt() {
   const { data: debts = [], isLoading: debtsLoading } = useQuery({
     queryKey: ['my-debts'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/debt`);
+      const { data } = await axios.get(`${API_URL}/api/debt`);
       return Array.isArray(data) ? data : [];
     }
   });
@@ -34,7 +35,7 @@ export default function Debt() {
   const { data: myTrees = [] } = useQuery({
     queryKey: ['my-verified-trees'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/my`);
+      const { data } = await axios.get(`${API_URL}/api/trees/my`);
       return data?.filter(t => t.status === 'VERIFIED' && !t.is_replacement) || [];
     }
   });
@@ -42,7 +43,7 @@ export default function Debt() {
   const linkTreeMutation = useMutation({
     mutationFn: async ({ debtDbId, originalTreeId, replacementTreeId, replacementTokenId, ownerWallet }) => {
       // 1. Fetch original tree to get its blockchain token ID
-      const { data: origTree } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/${originalTreeId}`);
+      const { data: origTree } = await axios.get(`${API_URL}/api/trees/${originalTreeId}`);
       if (!origTree || !origTree.blockchain_token_id) {
         throw new Error("Original tree blockchain token not found");
       }
@@ -60,7 +61,7 @@ export default function Debt() {
       await linkReplacementTreeOnChain(onChainDebtId, replacementTokenId);
 
       // 4. Update the backend GORM database
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/debt/${debtDbId}/link-tree`, { tree_id: replacementTreeId });
+      await axios.post(`${API_URL}/api/debt/${debtDbId}/link-tree`, { tree_id: replacementTreeId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['my-debts']);

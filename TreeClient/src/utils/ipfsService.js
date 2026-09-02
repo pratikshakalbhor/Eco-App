@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL;
+import API_URL from "../utils/config.js";
 
 export const uploadToIPFS = async (file) => {
     const url = `${API_URL}/api/media/upload`;

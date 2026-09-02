@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import API_URL from "../../utils/config.js";
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, Scissors, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -47,7 +48,7 @@ export default function ReportCutModal({ tree, isOpen, onClose, onSuccess }) {
             const evidenceUrl = uploadResult.url;
 
             // 2. Submit to Backend
-            await axios.post(`${import.meta.env.VITE_API_URL}/api/trees/${tree.id}/report-cut`, {
+            await axios.post(`${API_URL}/api/trees/${tree.id}/report-cut`, {
                 reason,
                 evidence_url: evidenceUrl,
                 notes

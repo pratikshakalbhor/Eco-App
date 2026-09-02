@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
+import API_URL from "../../utils/config.js";
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, TreePine, Info, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import axios from 'axios';
 import { useQuery } from '@tanstack/react-query';
+import { isPositiveNumber, isWithinRange } from '../../utils/validation';
 
 export default function CreateListingModal({ onClose, onSuccess }) {
   const [selectedTree, setSelectedTree] = useState(null);
@@ -17,7 +19,7 @@ export default function CreateListingModal({ onClose, onSuccess }) {
   const { data: myTrees = [], isLoading: treesLoading } = useQuery({
     queryKey: ['my-verified-trees'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/my`);
+      const { data } = await axios.get(`${API_URL}/api/trees/my`);
       return data?.filter(t => t.status === 'VERIFIED' && t.credits_available > 0) || [];
     }
   });
@@ -27,8 +29,13 @@ export default function CreateListingModal({ onClose, onSuccess }) {
   const earnings = subtotal - fee;
 
   const handleCreate = async () => {
-    if (!selectedTree || !amount || !price) {
-        setError("Please fill all fields correctly");
+    if (!selectedTree) {
+        setError("Please select a verified tree to list");
+        return;
+    }
+
+    if (!isPositiveNumber(amount)) {
+        setError("Sell amount must be a positive number");
         return;
     }
 
@@ -37,15 +44,25 @@ export default function CreateListingModal({ onClose, onSuccess }) {
         return;
     }
 
+    if (!isPositiveNumber(price)) {
+        setError("Price per credit must be a positive number");
+        return;
+    }
+
+    if (!isWithinRange(duration, 1, 365)) {
+        setError("Listing duration must be between 1 and 365 days");
+        return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/marketplace/listings`, {
+        await axios.post(`${API_URL}/api/marketplace/listings`, {
             tree_id: selectedTree.tree_id,
             credits_to_sell: parseFloat(amount),
             price_per_credit: parseFloat(price),
-            duration_days: parseInt(duration)
+            duration_days: parseInt(duration, 10)
         });
         setStep('success');
         setTimeout(() => onSuccess(), 2000);

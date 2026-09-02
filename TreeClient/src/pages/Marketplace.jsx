@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import API_URL from "../utils/config.js";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { 
@@ -30,7 +31,7 @@ export default function Marketplace() {
   const { data: listings = [], isLoading: listingsLoading } = useQuery({
     queryKey: ['marketplace-listings', speciesFilter],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/marketplace/listings`, {
+      const { data } = await axios.get(`${API_URL}/api/marketplace/listings`, {
         params: { status: 'ACTIVE', species: speciesFilter }
       });
       return data;
@@ -41,7 +42,7 @@ export default function Marketplace() {
   const { data: myTransactions = [] } = useQuery({
     queryKey: ['my-transactions'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/marketplace/transactions`);
+      const { data } = await axios.get(`${API_URL}/api/marketplace/transactions`);
       return data;
     },
     enabled: !!user
@@ -50,7 +51,7 @@ export default function Marketplace() {
   const { data: balance } = useQuery({
     queryKey: ['credit-balance'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/balance`);
+      const { data } = await axios.get(`${API_URL}/api/credits/balance`);
       return data;
     },
     enabled: !!user
@@ -59,7 +60,7 @@ export default function Marketplace() {
   const { data: stats } = useQuery({
     queryKey: ['marketplace-stats'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/marketplace/stats`);
+      const { data } = await axios.get(`${API_URL}/api/marketplace/stats`);
       return data;
     },
     enabled: !!user

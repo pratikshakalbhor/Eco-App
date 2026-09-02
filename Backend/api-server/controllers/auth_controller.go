@@ -123,11 +123,17 @@ func VerifySignature(c *gin.Context) {
 	config.DB.Model(&user).Update("nonce", "")
 
 	// Generate JWT
+	//
+	// NOTE: reduced from 72h to 24h. No refresh-token flow is implemented yet,
+	// so a 24h session is a compromise between usability and security for a
+	// carbon-credit application. After expiry the user simply reconnects their
+	// wallet (nonce -> signature -> new JWT). A shorter lifetime plus a real
+	// refresh-token flow is recommended for production.
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id":        user.ID.String(),
 		"wallet_address": user.WalletAddress,
 		"role":           user.Role,
-		"exp":            time.Now().Add(time.Hour * 72).Unix(),
+		"exp":            time.Now().Add(time.Hour * 24).Unix(),
 	})
 
 	jwtSecret := os.Getenv("JWT_SECRET")

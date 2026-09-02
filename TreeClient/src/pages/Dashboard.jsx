@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import API_URL from "../utils/config.js";
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -100,7 +101,7 @@ export default function EcoChainDashboard() {
   const { data: stats = { total: 0, pending: 0, verified: 0, rejected: 0 }, isLoading: isStatsLoading } = useQuery({
     queryKey: ['tree-stats'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/stats`);
+      const { data } = await axios.get(`${API_URL}/api/trees/stats`);
       return data;
     },
   });
@@ -108,7 +109,7 @@ export default function EcoChainDashboard() {
   const { data: trees = [], isLoading: isTreesLoading } = useQuery({
     queryKey: ['dashboard-trees'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees`);
+      const { data } = await axios.get(`${API_URL}/api/trees`);
       return data;
     },
   });
@@ -116,7 +117,7 @@ export default function EcoChainDashboard() {
   const { data: envStats } = useQuery({
     queryKey: ['env-stats'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/environment/stats`);
+      const { data } = await axios.get(`${API_URL}/api/environment/stats`);
       return data;
     }
   });
@@ -124,7 +125,7 @@ export default function EcoChainDashboard() {
   const { data: recentActivity = [] } = useQuery({
     queryKey: ['recent-activity'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/activity/recent`);
+      const { data } = await axios.get(`${API_URL}/api/activity/recent`);
       return data;
     }
   });
@@ -132,7 +133,7 @@ export default function EcoChainDashboard() {
   const { data: debts = [] } = useQuery({
     queryKey: ['my-debts-summary'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/debt`);
+      const { data } = await axios.get(`${API_URL}/api/debt`);
       return Array.isArray(data) ? data : [];
     },
     enabled: !!localStorage.getItem('eco_token')
@@ -141,7 +142,7 @@ export default function EcoChainDashboard() {
   const { data: balance } = useQuery({
     queryKey: ['credit-balance'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/balance`);
+      const { data } = await axios.get(`${API_URL}/api/credits/balance`);
       return data;
     },
     enabled: !!localStorage.getItem('eco_token')

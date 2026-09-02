@@ -7,10 +7,14 @@ import TreeCuttingReportABI from "../contracts/TreeCuttingReport.json";
 import ReplantationRegistryABI from "../contracts/ReplantationRegistry.json";
 
 // ─── Contract Addresses from Environment ────────────────────────────────────
+// Each DEPLOYED contract has ONE canonical environment variable. The
+// ecoToken/carbonCredit and ecoChainTree/ecoTree lookups historically pointed
+// at the same deployed contracts; carbonCredit/ecoTree now fall back to the
+// canonical variables so the duplicate VITE_* aliases are no longer needed.
 const CONTRACT_ADDRESSES = {
   ecoToken: import.meta.env.VITE_ECO_TOKEN,
-  carbonCredit: import.meta.env.VITE_CARBON_CREDIT,
-  ecoTree: import.meta.env.VITE_ECO_TREE,
+  carbonCredit: import.meta.env.VITE_ECO_TOKEN,
+  ecoTree: import.meta.env.VITE_ECO_CHAIN_TREE,
   treeCuttingReport: import.meta.env.VITE_TREE_CUTTING_REPORT,
   ecoChainTree: import.meta.env.VITE_ECO_CHAIN_TREE,
   replantationRegistry: import.meta.env.VITE_REPLANTATION_REGISTRY,

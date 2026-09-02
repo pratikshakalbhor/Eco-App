@@ -1,4 +1,5 @@
 import React from "react";
+import API_URL from "../utils/config.js";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { TreeDeciduous, Shield, Award, Globe, TrendingUp, Leaf } from "lucide-react";
@@ -14,7 +15,7 @@ export default function Home() {
   const { data: globalStats } = useQuery({
     queryKey: ['global-carbon-stats'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits`);
+      const { data } = await axios.get(`${API_URL}/api/credits`);
       return data;
     },
   });
@@ -22,7 +23,7 @@ export default function Home() {
   const { data: trees = [] } = useQuery({
     queryKey: ['trees-all-dashboard'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/all`);
+      const { data } = await axios.get(`${API_URL}/api/trees/all`);
       return data;
     },
   });

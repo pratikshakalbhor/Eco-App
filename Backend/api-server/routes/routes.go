@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"time"
+
 	"ecochain-backend/controllers"
 	"ecochain-backend/middleware"
 
@@ -10,11 +12,21 @@ import (
 func SetupRoutes(r *gin.Engine) {
 	api := r.Group("/api")
 	{
-		// ── Auth Group (Public) ─────────────────────────────────────
+		// ── Rate Limiting ───────────────────────────────────────────
+		// Per-IP fixed-window limits (in-memory, process-local).
+		//   - Auth endpoints: stricter to mitigate brute-force/abuse.
+		//   - Protected endpoints: generous to avoid breaking normal use.
+		authLimiter := middleware.NewRateLimiter(20, time.Minute)
+		verifyLimiter := middleware.NewRateLimiter(10, time.Minute)
+		protectedLimiter := middleware.NewRateLimiter(120, time.Minute)
+		marketplaceLimiter := middleware.NewRateLimiter(60, time.Minute)
+		mediaLimiter := middleware.NewRateLimiter(20, time.Minute)
+
+		// ── Auth Group (Public + rate limited) ──────────────────────
 		auth := api.Group("/auth")
 		{
-			auth.GET("/nonce", controllers.GetNonce)
-			auth.POST("/verify", controllers.VerifySignature)
+			auth.GET("/nonce", authLimiter.Handler(), controllers.GetNonce)
+			auth.POST("/verify", verifyLimiter.Handler(), controllers.VerifySignature)
 		}
 
 		// ── Public Routes ────────────────────────────────────────────
@@ -32,10 +44,11 @@ func SetupRoutes(r *gin.Engine) {
 		// ── Protected Context ───────────────────────────────────────
 		protected := api.Group("/")
 		protected.Use(middleware.AuthMiddleware())
+		protected.Use(protectedLimiter.Handler())
 		{
 			protected.GET("/auth/me", controllers.GetMe)
 			protected.GET("/user/stats", controllers.GetUserStats)
-			protected.POST("/media/upload", controllers.UploadToIPFS)
+			protected.POST("/media/upload", mediaLimiter.Handler(), controllers.UploadToIPFS)
 			protected.GET("/notifications", controllers.GetNotifications)
 
 			// ── Tree Lifecycle ───────────────────────────
@@ -66,11 +79,11 @@ func SetupRoutes(r *gin.Engine) {
 			}
 
 			// ── Marketplace ──────────────────────────────
-			protected.GET("/marketplace/listings", controllers.GetMarketplaceListings)
-			protected.POST("/marketplace/listings", controllers.CreateMarketplaceListing)
-			protected.POST("/marketplace/buy", controllers.BuyCredits)
-			protected.GET("/marketplace/transactions", controllers.GetTransactions)
-			protected.GET("/marketplace/stats", controllers.GetMarketplaceStats)
+			protected.GET("/marketplace/listings", marketplaceLimiter.Handler(), controllers.GetMarketplaceListings)
+			protected.POST("/marketplace/listings", marketplaceLimiter.Handler(), controllers.CreateMarketplaceListing)
+			protected.POST("/marketplace/buy", marketplaceLimiter.Handler(), controllers.BuyCredits)
+			protected.GET("/marketplace/transactions", marketplaceLimiter.Handler(), controllers.GetTransactions)
+			protected.GET("/marketplace/stats", marketplaceLimiter.Handler(), controllers.GetMarketplaceStats)
 
 			// ── Credits & Balance ────────────────────────
 			protected.GET("/credits/balance", controllers.GetCreditBalance)

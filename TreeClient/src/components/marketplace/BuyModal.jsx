@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import API_URL from "../../utils/config.js";
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, CreditCard, ShieldCheck, Zap, 
@@ -39,7 +40,7 @@ export default function BuyModal({ listing, onClose, onSuccess }) {
     try {
         const paymentResult = await payWithMetaMask(import.meta.env.VITE_PLATFORM_WALLET, total);
         
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/marketplace/buy`, {
+        await axios.post(`${API_URL}/api/marketplace/buy`, {
             listing_id: listing.id,
             amount_to_buy: parseFloat(amount),
             tx_hash: paymentResult.txHash,

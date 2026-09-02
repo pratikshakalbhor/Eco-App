@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import API_URL from "../utils/config.js";
 import { 
     Award, Shield, Leaf, Calendar, Wallet as WalletIcon, 
     User as UserIcon, TrendingUp, TrendingDown, Scissors,
@@ -43,7 +44,7 @@ const Profile = () => {
   const { data: carbonData } = useQuery({
     queryKey: ['user-stats-profile'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/stats`);
+      const { data } = await axios.get(`${API_URL}/api/user/stats`);
       return data;
     },
   });
@@ -51,7 +52,7 @@ const Profile = () => {
   const { data: balance } = useQuery({
     queryKey: ['credit-balance-profile'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/balance`);
+      const { data } = await axios.get(`${API_URL}/api/credits/balance`);
       return data;
     },
   });

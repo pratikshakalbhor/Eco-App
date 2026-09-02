@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import API_URL from "../utils/config.js";
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { 
@@ -67,7 +68,7 @@ export default function CarbonAccountability() {
     queryFn: async () => {
       const token = localStorage.getItem('eco_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits`, { headers });
+      const { data } = await axios.get(`${API_URL}/api/credits`, { headers });
       return data;
     },
     staleTime: 60_000,
@@ -79,7 +80,7 @@ export default function CarbonAccountability() {
     queryFn: async () => {
       const token = localStorage.getItem('eco_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/history`, { headers });
+      const { data } = await axios.get(`${API_URL}/api/credits/history`, { headers });
       return data;
     },
     staleTime: 60_000,
@@ -599,7 +600,7 @@ function CarbonBurnSection() {
       const { default: axios } = await import('axios');
       const token = localStorage.getItem('eco_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/credits/burn`, {
+      const { data } = await axios.post(`${API_URL}/api/credits/burn`, {
         amount: val,
         purpose: purpose || 'Carbon Offset',
         tx_hash: txHash,

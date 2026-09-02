@@ -3,7 +3,12 @@ TreeClient/node_modules/
 TreeClient/dist/
 TreeClient/dist-ssr/
 TreeClient/build/
-TreeClient/.env*
+.env
+.env.*
+!.env.example
+TreeClient/.env
+TreeClient/.env.*
+!TreeClient/.env.example
 TreeClient/coverage/
 
 # --- Backend (Backend) ---
@@ -14,7 +19,15 @@ Backend/cache/
 Backend/typechain/
 Backend/typechain-types/
 Backend/api-server/api-server
-Backend/.env*
+Backend/api-server/server
+Backend/api-server/server.exe
+Backend/.env
+Backend/.env.*
+!Backend/.env.example
+Backend/api-server/.env
+Backend/api-server/.env.*
+!Backend/api-server/.env.example
+Backend/*.db
 
 # --- Blockchain (blockchain) ---
 blockchain/node_modules/
@@ -23,7 +36,21 @@ blockchain/cache/
 blockchain/typechain/
 blockchain/typechain-types/
 blockchain/deployments/
-blockchain/.env*
+blockchain/.env
+blockchain/.env.*
+!blockchain/.env.example
+
+# --- Go builds / local databases / coverage / temp / logs ---
+*.exe
+*.test
+*.out
+*.db
+*.sqlite
+*.sqlite3
+coverage/
+*.cover
+*.log
+.DS_Store
 
 # --- General / OS / Editors ---
 .vscode/

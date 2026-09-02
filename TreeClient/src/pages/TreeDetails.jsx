@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import API_URL from "../utils/config.js";
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import axios from 'axios';
@@ -58,7 +59,7 @@ export default function TreeDetails() {
   const { data: tree, isLoading, isError, refetch } = useQuery({
     queryKey: ['tree', id],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/${id}`);
+      const { data } = await axios.get(`${API_URL}/api/trees/${id}`);
       return data;
     },
   });
@@ -67,7 +68,7 @@ export default function TreeDetails() {
   const { data: historyData, isLoading: historyLoading } = useQuery({
     queryKey: ['tree-history', id],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/${id}/history`);
+      const { data } = await axios.get(`${API_URL}/api/trees/${id}/history`);
       return data;
     },
     enabled: !!tree,
@@ -77,7 +78,7 @@ export default function TreeDetails() {
   const { data: loss } = useQuery({
     queryKey: ['tree-loss', id],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/${id}/loss`);
+      const { data } = await axios.get(`${API_URL}/api/trees/${id}/loss`);
       return data;
     },
     enabled: !!tree && (tree.status === 'CUT_CONFIRMED' || tree.status === 'CUT_REPORTED'),
@@ -86,7 +87,7 @@ export default function TreeDetails() {
   // Growth update mutation
   const growthMutation = useMutation({
     mutationFn: async () => {
-      await axios.patch(`${import.meta.env.VITE_API_URL}/api/trees/${tree.id}/growth`, {
+      await axios.patch(`${API_URL}/api/trees/${tree.id}/growth`, {
         health_status: growthHealth,
         notes: growthNotes,
       });

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import API_URL from "../utils/config.js";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { 
@@ -65,7 +66,7 @@ const MapPage = () => {
   const { data: trees = [], isLoading } = useQuery({
     queryKey: ['map-trees'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/all`);
+      const { data } = await axios.get(`${API_URL}/api/trees/all`);
       return data;
     },
     staleTime: 1000 * 60 * 5,

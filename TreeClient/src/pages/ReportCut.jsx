@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import API_URL from "../utils/config.js";
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { uploadToIPFS } from '../utils/ipfsService';
 
 const cleanImageUrl = (url) => (url && typeof url === 'string' && !url.startsWith('blob:') ? url : '/placeholder-tree.jpg');
 
@@ -20,8 +22,7 @@ const REASONS = [
   { value: 'Other', label: '📋 Other' },
 ];
 
-const API = import.meta.env.VITE_API_URL;
-const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
+const API = API_URL;
 
 export default function ReportCut() {
   const { id } = useParams();       // tree_id from URL
@@ -76,19 +77,10 @@ export default function ReportCut() {
     if (!evidenceFile) return null;
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', evidenceFile);
-      const res = await axios.post(
-        'https://api.pinata.cloud/pinning/pinFileToIPFS',
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${PINATA_JWT}`,
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-      return `https://gateway.pinata.cloud/ipfs/${res.data.IpfsHash}`;
+      // Upload via the BACKEND proxy so Pinata credentials never reach the
+      // browser. The backend stores the server-side Pinata credentials.
+      const { url } = await uploadToIPFS(evidenceFile);
+      return url;
     } catch (err) {
       console.error('IPFS upload error:', err);
       // If Pinata fails, use a placeholder so submission still works
@@ -107,6 +99,10 @@ export default function ReportCut() {
     if (!evidenceFile) { setError('Please upload photo evidence.'); return; }
     if (form.cut_date > new Date().toISOString().split('T')[0]) {
       setError('Cut date cannot be in the future.');
+      return;
+    }
+    if (form.latitude == null || form.longitude == null) {
+      setError('Please capture your GPS location before submitting.');
       return;
     }
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import API_URL from "../utils/config.js";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { 
@@ -35,7 +36,7 @@ export default function UnifiedVerificationHub() {
   const { data: trees = [], isLoading: treesLoading } = useQuery({
     queryKey: ['verification-trees'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees`); 
+      const { data } = await axios.get(`${API_URL}/api/trees`); 
       return data;
     },
   });
@@ -44,7 +45,7 @@ export default function UnifiedVerificationHub() {
   const { data: cutReports = [], isLoading: reportsLoading } = useQuery({
     queryKey: ['cut-reports'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/cut-reports?status=PENDING`);
+      const { data } = await axios.get(`${API_URL}/api/trees/cut-reports?status=PENDING`);
       return data;
     },
     enabled: activeStatus === 'CUT_REPORTS'
@@ -65,7 +66,7 @@ export default function UnifiedVerificationHub() {
       }
       
       // 2. Update backend
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/trees/${id}/verify`, { status, notes });
+      await axios.post(`${API_URL}/api/trees/${id}/verify`, { status, notes });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['verification-trees']);
@@ -92,7 +93,7 @@ export default function UnifiedVerificationHub() {
         }
       }
       const endpoint = approved ? 'confirm' : 'reject';
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/trees/${treeId}/cut/${endpoint}`);
+      await axios.post(`${API_URL}/api/trees/${treeId}/cut/${endpoint}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['cut-reports']);

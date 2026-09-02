@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import API_URL from "../utils/config.js";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -35,7 +36,7 @@ export default function RedesignedMyTrees() {
   const { data: trees = [], isLoading } = useQuery({
     queryKey: ['my-trees'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/trees/my`);
+      const { data } = await axios.get(`${API_URL}/api/trees/my`);
       return Array.isArray(data) ? data : [];
     },
   });

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import API_URL from "../utils/config.js";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { 
@@ -23,7 +24,7 @@ export default function AdminDashboard() {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/admin/stats`);
+      const { data } = await axios.get(`${API_URL}/api/admin/stats`);
       return data;
     },
   });
@@ -31,7 +32,7 @@ export default function AdminDashboard() {
   const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useQuery({
     queryKey: ['admin-users'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/admin/users`);
+      const { data } = await axios.get(`${API_URL}/api/admin/users`);
       return data;
     },
   });
@@ -39,7 +40,7 @@ export default function AdminDashboard() {
   const { data: activity = [], isLoading: activityLoading } = useQuery({
     queryKey: ['recent-activity-admin'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/activity/recent?limit=25`);
+      const { data } = await axios.get(`${API_URL}/api/activity/recent?limit=25`);
       return data;
     },
   });
@@ -47,7 +48,7 @@ export default function AdminDashboard() {
   // ── Mutations ────────────────────────────────────────────────────────────
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, newRole }) => {
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/admin/users/${userId}/role`, {
+      await axios.put(`${API_URL}/api/admin/users/${userId}/role`, {
         role: newRole,
       });
     },

@@ -1,4 +1,5 @@
 import React from 'react';
+import API_URL from "../utils/config.js";
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { 
@@ -21,7 +22,7 @@ export default function Environment() {
   const { data: stats } = useQuery({
     queryKey: ['env-stats'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/environment/stats`);
+      const { data } = await axios.get(`${API_URL}/api/environment/stats`);
       return data;
     }
   });
@@ -30,7 +31,7 @@ export default function Environment() {
   const { data: chartData } = useQuery({
     queryKey: ['monthly-stats'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/environment/monthly-stats`);
+      const { data } = await axios.get(`${API_URL}/api/environment/monthly-stats`);
       return data;
     }
   });
@@ -39,7 +40,7 @@ export default function Environment() {
   const { data: speciesStats } = useQuery({
     queryKey: ['species-stats'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/environment/species-stats`);
+      const { data } = await axios.get(`${API_URL}/api/environment/species-stats`);
       return data;
     }
   });
@@ -49,7 +50,7 @@ export default function Environment() {
     queryFn: async () => {
       const token = localStorage.getItem('eco_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/debt/all`, { headers });
+      const { data } = await axios.get(`${API_URL}/api/debt/all`, { headers });
       return data;
     }
   });

@@ -1,4 +1,5 @@
 import React from 'react';
+import API_URL from "../utils/config.js";
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
@@ -18,7 +19,7 @@ export default function Certificate() {
   const { data: cert, isLoading } = useQuery({
     queryKey: ['certificate', id],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/debt/${id}/certificate`);
+      const { data } = await axios.get(`${API_URL}/api/debt/${id}/certificate`);
       return data;
     }
   });

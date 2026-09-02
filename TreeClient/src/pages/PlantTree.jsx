@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import API_URL from "../utils/config.js";
 import { useLocation, useNavigate } from "react-router-dom";
 import { 
   TreePine, Upload, Loader2, CheckCircle2, MapPin, 
@@ -15,6 +16,7 @@ import axios from "axios";
 import { registerTreeOnChain, isSepoliaNetwork, connectWallet } from "../utils/web3Service";
 import { uploadToIPFS } from "../utils/ipfsService";
 import { useAuth } from "../hooks/useAuth";
+import { isPositiveNumber, isWithinRange, isNotFutureDate, isRequiredNonEmpty } from "../utils/validation";
 
 const COMMON_SPECIES = [
   "Neem", "Mango", "Banyan", "Peepal", "Ashoka",
@@ -127,9 +129,18 @@ export default function RedesignedPlantTree() {
     e.preventDefault();
     setError("");
 
-    if (!formData.species) { setError("Tree species is required."); return; }
-    if (!formData.latitude || !formData.longitude) { setError("GPS coordinates are required."); return; }
+    if (!isRequiredNonEmpty(formData.species)) { setError("Tree species is required."); return; }
+    if (formData.latitude === "" || formData.longitude === "") { setError("GPS coordinates are required."); return; }
     if (!formData.photo_url) { setError("Please upload a photo of the tree."); return; }
+    if (!isNotFutureDate(formData.planted_date)) { setError("Planting date cannot be in the future."); return; }
+    if (!isPositiveNumber(formData.estimated_age) || !isWithinRange(formData.estimated_age, 0, 5000)) {
+      setError("Estimated age must be a valid number between 0 and 5000.");
+      return;
+    }
+    if (!HEALTH_STATUSES.includes(formData.health_status)) {
+      setError("Please select a valid health status.");
+      return;
+    }
 
     setSubmitting(true);
     setSuccess(false);
@@ -170,7 +181,7 @@ export default function RedesignedPlantTree() {
 
       const token = localStorage.getItem('eco_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/trees`, payload, { headers });
+      const { data } = await axios.post(`${API_URL}/api/trees`, payload, { headers });
       
       // 3. Link to debt if applicable (backend handles some but good to be explicit or let backend do it)
       // The backend RegisterTree handles the debt linking if ReplantedDebtID is provided.

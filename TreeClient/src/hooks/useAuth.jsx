@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import API_URL from "../utils/config.js";
 import axios from 'axios';
 import { connectWallet, signMessage } from '../utils/web3Service';
 
@@ -22,7 +23,7 @@ export const AuthProvider = ({ children }) => {
 
       // 2. Get Nonce from Backend
       const { data: { nonce } } = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/auth/nonce?address=${address}`
+        `${API_URL}/api/auth/nonce?address=${address}`
       );
       console.log('[Auth] Step 2 - Nonce received:', nonce);
 
@@ -34,7 +35,7 @@ export const AuthProvider = ({ children }) => {
 
       // 4. Verify on Backend
       console.log('[Auth] Step 5 - Sending verify request...');
-      const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/verify`, {
+      const { data } = await axios.post(`${API_URL}/api/auth/verify`, {
         address,
         signature
       });
@@ -62,7 +63,7 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       try {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/me`);
+        const { data } = await axios.get(`${API_URL}/api/auth/me`);
         setUser(data);
       } catch (err) {
         logout();

@@ -4,6 +4,8 @@ import (
 	"ecochain-backend/config"
 	"ecochain-backend/routes"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -25,8 +27,23 @@ func main() {
 	r := gin.Default()
 
 	// Configure CORS
+	//
+	// Origins are read from CORS_ORIGINS (comma-separated) so each
+	// environment can specify its own allowlist. Local development hosts are
+	// included by default. NEVER use "*" here because authenticated requests
+	// carry credentials (Authorization header / cookies).
+	allowedOrigins := []string{"http://localhost:5173", "http://localhost:3000"}
+	if extra := os.Getenv("CORS_ORIGINS"); extra != "" {
+		for _, o := range strings.Split(extra, ",") {
+			o = strings.TrimSpace(o)
+			if o != "" {
+				allowedOrigins = append(allowedOrigins, o)
+			}
+		}
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import API_URL from "../utils/config.js";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -7,7 +8,7 @@ import { LogOut, Coins, Bell, Clock, Eye } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const Navbar = () => {
-  const { logout } = useAuth();
+  const { logout, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef(null);
@@ -15,19 +16,22 @@ const Navbar = () => {
   const { data: balance } = useQuery({
     queryKey: ['credit-balance-nav'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/credits/balance`);
+      const { data } = await axios.get(`${API_URL}/api/credits/balance`);
       return data;
     },
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    // Only fetch after authentication has settled AND a user is logged in.
+    enabled: !authLoading && !!user,
   });
 
   const { data: notifications = [], refetch: refetchNotifications } = useQuery({
     queryKey: ['my-notifications-nav'],
     queryFn: async () => {
-      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/notifications`);
+      const { data } = await axios.get(`${API_URL}/api/notifications`);
       return data;
     },
-    refetchInterval: 10000
+    refetchInterval: 10000,
+    enabled: !authLoading && !!user,
   });
 
   useEffect(() => {

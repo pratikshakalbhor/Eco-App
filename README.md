@@ -66,7 +66,7 @@ Eco-App/
 * MetaMask Extension loaded in your browser with Sepolia Testnet configuration.
 
 ### 1. Setting up Backend Environment Variables
-Create `.env` file inside `Backend/api-server/`:
+Copy `.env.example` to `.env` inside `Backend/api-server/` and fill in real values:
 ```env
 DB_HOST=your-supabase-db-host
 DB_USER=postgres
@@ -77,10 +77,18 @@ DB_SSLMODE=require
 
 JWT_SECRET=YourSuperSecureJWTSecretPhraseHere
 
+# Pinata credentials live ONLY on the backend (proxy uploads via /api/media/upload)
 PINATA_JWT=your_pinata_jwt_token_here
 PINATA_API_KEY=your_api_key_here
 PINATA_SECRET_KEY=your_secret_key_here
+
+# Comma-separated list of allowed CORS origins (dev + production frontend)
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000,https://your-frontend-domain.com
 ```
+
+> **Security:** Never put Pinata credentials or other server secrets in the frontend
+> `VITE_*` variables. IPFS uploads are proxied through the backend so secrets stay
+> server-side.
 
 ### 2. Run the Backend API Server
 ```bash
