@@ -1,0 +1,49 @@
+name: CD – Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    # Only deploy on main after CI has passed.
+    # A manual (workflow_dispatch) run skips the CI gate check.
+    if: ${{ github.event.workflow_run == null || github.event.workflow_run.conclusion == 'success' }}
+    env:
+      VERCEL_ORG_ID:      ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID:  ${{ secrets.VERCEL_PROJECT_ID }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # ──────────────────────── Frontend → Vercel ────────────────────────────
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build frontend (production)
+        run: vercel build --prod --yes --cwd TreeClient --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL_PRODUCTION }}
+
+      - name: Deploy frontend to Vercel (production)
+        run: vercel deploy --prod --prebuilt --yes --cwd TreeClient --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # ──────────────────────── Backend → Render ─────────────────────────────
+      - name: Deploy backend to Render
+        run: curl --fail --silent --show-error "$RENDER_DEPLOY_HOOK_URL"
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
