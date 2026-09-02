@@ -16,7 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/golang-jwt/jwt/v5"
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -57,7 +57,7 @@ func makeToken(userID, wallet, role string) string {
 	return s
 }
 
-func setupRouter(db *gorm.DB) *gin.Engine {
+func setupRouter(_ *gorm.DB) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -194,7 +194,7 @@ func TestFormatEventDescription(t *testing.T) {
 
 func TestGetNonce_MissingAddress(t *testing.T) {
 	setupTestEnv(t)
-	db := setupTestDB(t)
+	setupTestDB(t)
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.GET("/api/auth/nonce", GetNonce)
