@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { menuItemsData, adminMenuItems } from '@/data/menuItemsData';
+import { menuItemsData, journeyMenuItems, exploreMenuItems, adminMenuItems } from '@/data/menuItemsData';
 
 describe('menuItemsData', () => {
   it('exports an array of menu items', () => {
@@ -34,14 +34,19 @@ describe('menuItemsData', () => {
     expect(uniqueIds.size).toBe(ids.length);
   });
 
-  it('includes all expected pages', () => {
-    const labels = menuItemsData.map((item) => item.label);
+  it('includes all expected pages across the navigation groups', () => {
+    const labels = [
+      ...menuItemsData.map((item) => item.label),
+      ...journeyMenuItems.map((item) => item.label),
+      ...exploreMenuItems.map((item) => item.label),
+    ];
     expect(labels).toContain('Dashboard');
-    expect(labels).toContain('Plant Tree');
+    expect(labels).toContain('Plant a Tree');
     expect(labels).toContain('My Trees');
     expect(labels).toContain('Marketplace');
     expect(labels).toContain('Carbon Credits');
-    expect(labels).toContain('Map');
+    expect(labels).toContain('Environment');
+    expect(labels).toContain('Tree Map');
     expect(labels).toContain('Profile');
   });
 });
@@ -52,8 +57,10 @@ describe('adminMenuItems', () => {
     expect(adminMenuItems.length).toBeGreaterThan(0);
   });
 
-  it('includes Admin Panel', () => {
-    expect(adminMenuItems[0].label).toBe('Admin Panel');
-    expect(adminMenuItems[0].path).toBe('/admin');
+  it('includes verification and admin tools', () => {
+    expect(adminMenuItems[0].label).toBe('Verification Hub');
+    expect(adminMenuItems[0].path).toBe('/verification');
+    expect(adminMenuItems[1].label).toBe('Admin Panel');
+    expect(adminMenuItems[1].path).toBe('/admin');
   });
 });

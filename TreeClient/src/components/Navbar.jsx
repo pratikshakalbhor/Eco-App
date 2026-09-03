@@ -4,34 +4,44 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
-import { Bell, Clock, LogOut, Settings, ChevronDown, Wifi, WifiOff } from "lucide-react";
-import { AnimatePresence } from "framer-motion";
+import { LogOut, Coins, Bell, Clock, Eye } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
-const TopHeader = ({ setSidebarOpen }) => {
+const Navbar = () => {
   const { logout, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const notifRef = useRef(null);
-  const userMenuRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  const { data: balance } = useQuery({
+    queryKey: ['credit-balance-nav'],
+    queryFn: async () => {
+      const { data } = await axios.get(`${API_URL}/api/credits/balance`);
+      return data;
+    },
+    refetchInterval: 30000,
+    // Only fetch after authentication has settled AND a user is logged in.
+    enabled: !authLoading && !!user,
+  });
 
   const { data: notifications = [], refetch: refetchNotifications } = useQuery({
-    queryKey: ["zb-notifications"],
+    queryKey: ['my-notifications-nav'],
     queryFn: async () => {
       const { data } = await axios.get(`${API_URL}/api/notifications`);
       return data;
     },
-    refetchInterval: 15000,
+    refetchInterval: 10000,
     enabled: !authLoading && !!user,
   });
 
   useEffect(() => {
-    const handler = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifications(false);
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setShowUserMenu(false);
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleLogout = async () => {
@@ -39,153 +49,107 @@ const TopHeader = ({ setSidebarOpen }) => {
     navigate("/login");
   };
 
-  const unseenCount = notifications.length;
+  const unseenCount = notifications.length; // Simple simulation or count
 
   return (
-    <header className="h-16 bg-zb-surface/80 backdrop-blur-xl border-b border-zb-border flex items-center justify-between px-4 lg:px-6 shrink-0 z-20">
-      {/* Left: Mobile menu + Network */}
-      <div className="flex items-center gap-3">
+    <div className="flex items-center gap-6 relative" ref={dropdownRef}>
+      
+      {/* ── Carbon Balance Quick View ─────────────────────────────────── */}
+      <div className="hidden md:flex items-center gap-3 px-6 py-2.5 bg-emerald-50 border border-emerald-100 rounded-2xl group hover:bg-emerald-100 transition-all cursor-pointer shadow-sm">
+        <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+          <Coins className="w-4 h-4" />
+        </div>
+        <div>
+          <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-1">Balance</p>
+          <div className="flex items-baseline gap-1">
+            <span className="text-sm font-black text-slate-900 tabular-nums">{balance?.available?.toFixed(3) || '0.000'}</span>
+            <span className="text-[9px] font-black text-emerald-500 uppercase">ECO</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Notifications Bell ─────────────────────────────────────────── */}
+      <div className="relative">
         <button
-          onClick={() => setSidebarOpen(true)}
-          className="p-2 rounded-lg text-zb-text-secondary hover:text-zb-text hover:bg-zb-card lg:hidden transition-colors"
+          onClick={() => setShowNotifications(!showNotifications)}
+          className={`flex items-center justify-center w-12 h-12 rounded-2xl border transition-all relative ${
+            showNotifications 
+              ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+              : 'bg-slate-50 border-slate-100 text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+          }`}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
+          <Bell className="w-5 h-5" />
+          {unseenCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-orange-600 border-2 border-white rounded-full flex items-center justify-center text-[9px] font-black text-white shadow-lg shadow-orange-500/30 animate-pulse">
+              {unseenCount}
+            </span>
+          )}
         </button>
 
-        {/* Network indicator */}
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-zb-card border border-zb-border rounded-lg">
-          <div className="w-1.5 h-1.5 rounded-full bg-zb-green animate-zb-pulse" />
-          <span className="text-[11px] font-semibold text-zb-text-secondary uppercase tracking-wider hidden sm:inline">Preprod</span>
-          <span className="text-[11px] font-semibold text-zb-text-secondary uppercase tracking-wider sm:hidden">Testnet</span>
-        </div>
-
-        {/* Midnight Status */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-zb-card border border-zb-border rounded-lg">
-          <div className="w-1.5 h-1.5 rounded-full bg-zb-purple" />
-          <span className="text-[11px] font-semibold text-zb-text-secondary uppercase tracking-wider">Midnight</span>
-        </div>
-      </div>
-
-      {/* Right: Actions */}
-      <div className="flex items-center gap-2" ref={notifRef}>
-        {/* Notifications */}
-        <div className="relative">
-          <button
-            onClick={() => { setShowNotifications(!showNotifications); setShowUserMenu(false); }}
-            className={`relative p-2.5 rounded-xl border transition-all ${
-              showNotifications
-                ? "bg-zb-cyan/10 text-zb-cyan border-zb-cyan/20"
-                : "bg-zb-card text-zb-text-muted border-zb-border hover:text-zb-text-secondary hover:border-zb-border-light"
-            }`}
-          >
-            <Bell className="w-4 h-4" />
-            {unseenCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-zb-amber rounded-full flex items-center justify-center text-[9px] font-bold text-zb-bg border-2 border-zb-surface">
-                {unseenCount > 9 ? "9+" : unseenCount}
-              </span>
-            )}
-          </button>
-
-          <AnimatePresence>
-            {showNotifications && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                className="absolute right-0 mt-2 w-80 bg-zb-card border border-zb-border rounded-2xl shadow-2xl overflow-hidden z-50"
-              >
-                <div className="p-4 border-b border-zb-border flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-semibold text-zb-text">Security Alerts</h4>
-                    <p className="text-[10px] text-zb-text-muted uppercase tracking-wider mt-0.5">System Notifications</p>
-                  </div>
-                  <button onClick={() => refetchNotifications()} className="text-[10px] font-semibold text-zb-cyan hover:text-zb-cyan-dim uppercase tracking-wider">
-                    Refresh
-                  </button>
+        {/* Dropdown Popover */}
+        <AnimatePresence>
+          {showNotifications && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute right-0 mt-3 w-80 bg-white border border-slate-100 rounded-3xl shadow-2xl overflow-hidden z-50 pointer-events-auto"
+            >
+              <div className="p-5 border-b border-slate-50 flex items-center justify-between">
+                <div>
+                  <h4 className="font-black text-slate-800 text-sm">Actionable Alerts</h4>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Ecosystem Status Updates</p>
                 </div>
-                <div className="max-h-[280px] overflow-y-auto divide-y divide-zb-border">
-                  {notifications.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <Bell className="w-8 h-8 mx-auto mb-2 text-zb-text-muted opacity-40" />
-                      <p className="text-[11px] font-medium text-zb-text-muted uppercase tracking-wider">No alerts</p>
-                    </div>
-                  ) : (
-                    notifications.map((notif, i) => (
-                      <div key={i} className="p-3.5 hover:bg-zb-card-hover transition-colors flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-zb-cyan/10 text-zb-cyan flex items-center justify-center shrink-0 mt-0.5">
-                          <Bell className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="inline-block px-1.5 py-0.5 bg-zb-surface rounded text-[9px] font-semibold uppercase text-zb-cyan tracking-wider mb-1">
-                            {notif.event_type}
-                          </span>
-                          <p className="text-xs text-zb-text-secondary font-medium leading-relaxed">{notif.description}</p>
-                          <div className="flex items-center gap-1 mt-1 text-[10px] text-zb-text-muted">
-                            <Clock className="w-3 h-3" />
-                            {new Date(notif.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                          </div>
+                <button 
+                  onClick={() => refetchNotifications()}
+                  className="text-[9px] font-black text-emerald-600 hover:text-emerald-800 uppercase tracking-widest"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              <div className="max-h-[320px] overflow-y-auto divide-y divide-slate-50">
+                {notifications.length === 0 ? (
+                  <div className="p-8 text-center text-slate-300">
+                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-[10px] font-black uppercase tracking-wider">Inbox Clean</p>
+                  </div>
+                ) : (
+                  notifications.map((notif, i) => (
+                    <div key={i} className="p-4 hover:bg-slate-50 transition-colors flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center text-sm shrink-0">
+                        🌿
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="inline-block px-2 py-0.5 bg-white border border-slate-100 rounded-full text-[8px] font-black uppercase text-emerald-600 tracking-wider mb-1">
+                          {notif.event_type}
+                        </span>
+                        <p className="text-xs text-slate-700 font-bold leading-normal">{notif.description}</p>
+                        <div className="flex items-center gap-1 mt-1 text-[9px] text-slate-400 font-bold">
+                          <Clock className="w-3 h-3" />
+                          {new Date(notif.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* User Menu */}
-        <div className="relative" ref={userMenuRef}>
-          <button
-            onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); }}
-            className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 bg-zb-card border border-zb-border rounded-xl hover:border-zb-border-light transition-all"
-          >
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-zb-cyan/20 to-zb-blue/20 border border-zb-cyan/20 flex items-center justify-center text-zb-cyan text-[10px] font-bold">
-              {user?.wallet_address?.slice(2, 4).toUpperCase() || "ZB"}
-            </div>
-            <span className="text-xs font-medium text-zb-text-secondary hidden sm:inline max-w-[80px] truncate">
-              {user?.wallet_address ? `${user.wallet_address.slice(0, 6)}...${user.wallet_address.slice(-4)}` : "Connect"}
-            </span>
-            <ChevronDown className="w-3 h-3 text-zb-text-muted" />
-          </button>
-
-          <AnimatePresence>
-            {showUserMenu && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                className="absolute right-0 mt-2 w-56 bg-zb-card border border-zb-border rounded-xl shadow-2xl overflow-hidden z-50"
-              >
-                <div className="p-3 border-b border-zb-border">
-                  <p className="text-xs font-medium text-zb-text truncate">{user?.full_name || "User"}</p>
-                  <p className="text-[10px] text-zb-text-muted font-mono truncate mt-0.5">{user?.wallet_address}</p>
-                </div>
-                <div className="p-1.5">
-                  <button
-                    onClick={() => { navigate("/wallet"); setShowUserMenu(false); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zb-text-secondary hover:text-zb-text hover:bg-zb-card-hover transition-colors"
-                  >
-                    <Settings className="w-3.5 h-3.5" />
-                    Settings
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zb-red hover:bg-zb-red/10 transition-colors"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    Disconnect
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </header>
+
+      {/* ── Logout Button ─────────────────────────────────────────────── */}
+      <button
+        onClick={handleLogout}
+        className="flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all"
+        title="Logout"
+      >
+        <LogOut className="w-5 h-5" />
+      </button>
+    </div>
   );
 };
 
-export default TopHeader;
+export default Navbar;
+

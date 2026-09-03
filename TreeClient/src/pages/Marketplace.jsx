@@ -84,10 +84,10 @@ export default function Marketplace() {
                     <div className="p-2 bg-emerald-100 rounded-xl">
                         <ShoppingBag className="w-5 h-5 text-emerald-600" />
                     </div>
-                    <span className="text-[10px] font-black text-emerald-700 uppercase tracking-[0.2em]">Eco-Asset Marketplace</span>
+                    <span className="text-[10px] font-black text-emerald-700 uppercase tracking-[0.2em]">Marketplace</span>
                 </div>
-                <h1 className="text-6xl font-black text-slate-900 tracking-tighter">Carbon Exchange</h1>
-                <p className="text-slate-500 font-medium text-lg max-w-xl">Trade verified carbon credits from global biological assets. Support reforestation while offsetting your footprint.</p>
+                <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Buy & Sell Carbon Credits</h1>
+                <p className="text-slate-500 font-medium text-lg max-w-xl">Trade verified carbon credits with other users. Selling supports reforestation; buying lets you offset your own footprint.</p>
             </div>
 
             <div className="flex bg-slate-100 p-1.5 rounded-[1.5rem] border border-slate-200 shadow-sm">
@@ -102,10 +102,10 @@ export default function Marketplace() {
 
         {/* Market Stats Bar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <StatSmall label="Market Price" value={`₹${stats?.avg_price?.toFixed(0) || '700'}/cr`} icon={TrendingUp} color="emerald" />
-            <StatSmall label="24h Volume" value={`${stats?.volume_24h?.toFixed(2) || '0.00'} cr`} icon={Activity} color="sky" />
-            <StatSmall label="Active Deals" value={stats?.active_listings || '0'} icon={Zap} color="amber" />
-            <StatSmall label="Your Equity" value={`₹${((balance?.available || 0) * 700).toLocaleString()}`} icon={BarChart3} color="emerald" />
+            <StatSmall label="Market Price" value={`₹${stats?.avg_price?.toFixed(0) || '700'}/credit`} icon={TrendingUp} color="emerald" />
+            <StatSmall label="Traded (24h)" value={`${stats?.volume_24h?.toFixed(2) || '0.00'}`} icon={Activity} color="sky" />
+            <StatSmall label="Active Listings" value={stats?.active_listings || '0'} icon={Zap} color="amber" />
+            <StatSmall label="Your Credits Value" value={`₹${((balance?.available || 0) * 700).toLocaleString()}`} icon={BarChart3} color="emerald" />
         </div>
 
         {/* Sub-Header & Controls */}
@@ -170,7 +170,7 @@ export default function Marketplace() {
                     animate={{ opacity: 1 }}
                     className="space-y-6"
                 >
-                    <h3 className="text-sm font-black uppercase text-slate-400 tracking-widest px-2">Managed Listings</h3>
+                    <h3 className="text-sm font-black uppercase text-slate-400 tracking-widest px-2">My Listings</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {listings.filter(l => l.seller_wallet.toLowerCase() === user?.walletAddress?.toLowerCase()).map(listing => (
                             <ListingCard key={listing.id} listing={listing} onBuy={() => {}} isOwnListing={true} />
@@ -187,7 +187,7 @@ export default function Marketplace() {
                     className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-sm"
                 >
                     <div className="flex justify-between items-center mb-10">
-                        <h3 className="text-2xl font-black text-slate-900 tracking-tight">Transaction Ledger</h3>
+                        <h3 className="text-2xl font-black text-slate-900 tracking-tight">Your Transactions</h3>
                         <Button variant="ghost" className="text-emerald-600 font-bold flex items-center gap-2">
                             Download CSV <ArrowUpRight className="w-4 h-4" />
                         </Button>

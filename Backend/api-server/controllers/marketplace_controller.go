@@ -233,15 +233,15 @@ func GetMarketplaceStats(c *gin.Context) {
 	
 	config.DB.Model(&models.MarketplaceListing{}).
 		Where("status IN ?", []string{"ACTIVE", "PARTIAL", "SOLD"}).
-		Select("AVG(price_per_credit)").Scan(&stats.AvgPrice)
+		Select("COALESCE(AVG(price_per_credit), 0)").Scan(&stats.AvgPrice)
 
 	yesterday := time.Now().AddDate(0, 0, -1)
 	config.DB.Model(&models.MarketplaceTransaction{}).
 		Where("created_at >= ?", yesterday).
-		Select("SUM(credits_amount)").Scan(&stats.Volume24h)
+		Select("COALESCE(SUM(credits_amount), 0)").Scan(&stats.Volume24h)
 
 	config.DB.Model(&models.MarketplaceTransaction{}).
-		Select("SUM(total_inr)").Scan(&stats.TotalTraded)
+		Select("COALESCE(SUM(total_inr), 0)").Scan(&stats.TotalTraded)
 
 	c.JSON(http.StatusOK, stats)
 }

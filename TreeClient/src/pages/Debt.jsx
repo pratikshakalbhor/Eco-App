@@ -89,13 +89,15 @@ export default function Debt() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 bg-rose-100 rounded-xl">
-                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              <div className="p-2 bg-emerald-100 rounded-xl">
+                <Sprout className="w-5 h-5 text-emerald-700" />
               </div>
-              <span className="text-[10px] font-black text-rose-800 uppercase tracking-[0.2em]">Replantation Obligations</span>
+              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-[0.2em]">Replantation</span>
             </div>
-            <h1 className="text-5xl font-black text-slate-900 tracking-tight">Environmental Debt</h1>
-            <p className="text-slate-500 mt-2 text-lg">Manage and resolve ecosystem replacement debts to restore your carbon credit integrity.</p>
+            <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Replant & Balance</h1>
+            <p className="text-slate-500 mt-2 text-lg max-w-2xl">
+              When a tree is cut, we ask that you plant replacement trees to restore its environmental impact. Here you can track and complete that requirement.
+            </p>
           </div>
 
           <div className="flex bg-slate-100 p-1.5 rounded-2xl">
@@ -129,9 +131,20 @@ export default function Debt() {
             ))}
           </AnimatePresence>
           {filteredDebts.length === 0 && !debtsLoading && (
-            <div className="py-32 text-center bg-white rounded-[3rem] border border-dashed border-slate-200">
-               <CheckCircle2 className="w-16 h-16 text-emerald-100 mx-auto mb-4" />
-               <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No {activeTab} debts found.</p>
+            <div className="py-24 text-center bg-white rounded-3xl border border-dashed border-slate-200">
+               {activeTab === 'active' ? (
+                 <>
+                   <CheckCircle2 className="w-16 h-16 text-emerald-200 mx-auto mb-4" />
+                   <p className="text-slate-500 font-semibold text-lg">No replantation needed right now</p>
+                   <p className="text-slate-400 text-sm mt-1 max-w-md mx-auto">You have no pending replantation requirements. If a tree is ever reported as cut, it will appear here.</p>
+                 </>
+               ) : (
+                 <>
+                   <Calendar className="w-16 h-16 text-emerald-100 mx-auto mb-4" />
+                   <p className="text-slate-500 font-semibold text-lg">No resolved replantations yet</p>
+                   <p className="text-slate-400 text-sm mt-1">Trees you've successfully replanted will appear here.</p>
+                 </>
+               )}
             </div>
           )}
         </div>
@@ -151,7 +164,7 @@ export default function Debt() {
               <div className="p-10 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
                 <div>
                   <h3 className="text-2xl font-black text-slate-900 tracking-tight">Link Replacement Tree</h3>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Select from your verified biological assets</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Choose one of your verified trees</p>
                 </div>
                 <button onClick={() => setIsLinking(null)} className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center hover:bg-slate-50 transition-colors">
                   <Plus className="w-6 h-6 rotate-45 text-slate-400" />
@@ -233,11 +246,11 @@ const DebtCard = ({ debt, onLink, onPlant, onViewCert, delay }) => {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <Badge className={`uppercase text-[10px] font-black tracking-widest px-4 py-1.5 ${isCleared ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                {isCleared ? 'Debt Fully Resolved' : 'Active Ecological Obligation'}
+                {isCleared ? 'Completed' : 'Needs replanting'}
               </Badge>
-              <span className="text-xs font-mono font-bold text-slate-400">Ref: {debt.original_tree_id}</span>
+              <span className="text-xs font-mono font-bold text-slate-400">Original tree: {debt.original_tree_id}</span>
             </div>
-            <h3 className="text-3xl font-black text-slate-900 tracking-tight">Replantation for {debt.original_tree_id}</h3>
+            <h3 className="text-3xl font-black text-slate-900 tracking-tight">Replant · {debt.original_tree_id}</h3>
             <div className="flex flex-wrap gap-4">
                <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                  <Calendar className="w-3.5 h-3.5" />

@@ -14,9 +14,9 @@ import (
 	"ecochain-backend/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/glebarez/sqlite"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -87,7 +87,7 @@ func createTestTree(t *testing.T, db *gorm.DB, planterID uuid.UUID, status strin
 	t.Helper()
 	tree := models.Tree{
 		ID:                   uuid.New(),
-		TreeID:               fmt.Sprintf("TREE-%d", time.Now().UnixNano()),
+		TreeID:               fmt.Sprintf("TREE-%s", uuid.New().String()[:8]),
 		PlanterID:            planterID,
 		Species:              species,
 		Nickname:             "Test Tree",
@@ -372,9 +372,9 @@ func TestGetTreeStats(t *testing.T) {
 	var stats map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &stats)
 
-	totalTrees := int(stats["total_trees"].(float64))
+	totalTrees := int(stats["total"].(float64))
 	if totalTrees != 3 {
-		t.Errorf("expected total_trees 3, got %d", totalTrees)
+		t.Errorf("expected total 3, got %d", totalTrees)
 	}
 }
 
@@ -464,8 +464,8 @@ func TestGetAdminStats(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &stats)
 
 	totalUsers := int(stats["total_users"].(float64))
-	if totalUsers != 3 { // 2 created + 1 from middleware mock
-		t.Errorf("expected total_users >= 2, got %d", totalUsers)
+	if totalUsers != 2 { // 2 users created in the test; middleware mock only sets context, does not insert a User row
+		t.Errorf("expected total_users 2, got %d", totalUsers)
 	}
 }
 

@@ -2,25 +2,23 @@ import React from "react";
 
 export function Table({ children, className = "" }) {
   return (
-    <div className={`w-full overflow-x-auto ${className}`}>
-      <table className="w-full text-sm">
-        {children}
-      </table>
-    </div>
+    <table className={`min-w-full border border-gray-200 rounded-lg ${className}`}>
+      {children}
+    </table>
   );
 }
 
 export function TableHeader({ children, className = "" }) {
-  return <thead className={`${className}`}>{children}</thead>;
+  return <thead className={`bg-gray-100 ${className}`}>{children}</thead>;
 }
 
 export function TableBody({ children, className = "" }) {
-  return <tbody className={`divide-y divide-zb-border ${className}`}>{children}</tbody>;
+  return <tbody className={className}>{children}</tbody>;
 }
 
 export function TableRow({ children, className = "" }) {
   return (
-    <tr className={`hover:bg-zb-card-hover transition-colors ${className}`}>
+    <tr className={`border-b last:border-none hover:bg-gray-50 ${className}`}>
       {children}
     </tr>
   );
@@ -28,7 +26,7 @@ export function TableRow({ children, className = "" }) {
 
 export function TableHead({ children, className = "" }) {
   return (
-    <th className={`text-left px-4 py-3 text-[11px] font-semibold text-zb-text-muted uppercase tracking-wider ${className}`}>
+    <th className={`text-left px-4 py-2 font-semibold text-gray-700 ${className}`}>
       {children}
     </th>
   );
@@ -36,7 +34,7 @@ export function TableHead({ children, className = "" }) {
 
 export function TableCell({ children, className = "" }) {
   return (
-    <td className={`px-4 py-3 text-zb-text ${className}`}>
+    <td className={`px-4 py-2 text-gray-700 ${className}`}>
       {children}
     </td>
   );

@@ -4,7 +4,7 @@ export function Label({ htmlFor, children, className = "" }) {
   return (
     <label
       htmlFor={htmlFor}
-      className={`block text-xs font-semibold text-zb-text-secondary mb-1.5 uppercase tracking-wider ${className}`}
+      className={`block text-sm font-medium text-gray-700 mb-1 ${className}`}
     >
       {children}
     </label>

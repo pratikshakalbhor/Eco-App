@@ -3,11 +3,21 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import Layout from "./components/Layout";
-import Login from "./pages/Login";
+import PlantTree from "./pages/PlantTree";
+import Environment from './pages/Environment';
+import Certificate from './pages/Certificate';
+import MyTree from "./pages/MyTree";
 import Dashboard from "./pages/Dashboard";
-import Analyze from "./pages/Analyze";
-import Security from "./pages/Security";
-import WalletPage from "./pages/Wallet";
+import Map from "./pages/Map";
+import Profile from "./pages/Profile";
+import VerificationQueue from "./pages/VerificationQueue";
+import Login from "./pages/Login";
+import TreeDetails from "./pages/TreeDetails";
+import ReportCut from "./pages/ReportCut";
+import Debt from "./pages/Debt";
+import Marketplace from "./pages/Marketplace";
+import CarbonCredits from "./pages/CarbonCredits";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,15 +30,17 @@ const queryClient = new QueryClient({
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-zb-bg">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 border-2 border-zb-cyan/30 border-t-zb-cyan rounded-full animate-spin" />
-        <p className="text-xs text-zb-text-muted font-medium uppercase tracking-widest">Loading ZeroBridge...</p>
-      </div>
-    </div>
-  );
+  if (loading) return <div className="h-screen flex items-center justify-center bg-[#0a0a0a] text-white text-sm font-black tracking-widest uppercase animate-pulse">Loading EcoChain...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  return children;
+};
+
+// Enforces role-based access — redirects non-authorized users to dashboard
+const RoleRoute = ({ children, allowedRoles }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-sm text-slate-400 animate-pulse">Authenticating...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!allowedRoles.includes(user.role)) return <Navigate to="/dashboard" replace />;
   return children;
 };
 
@@ -46,21 +58,31 @@ function App() {
             }>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
-              <Route path="analyze" element={<Analyze />} />
-              <Route path="security" element={<Security />} />
-              <Route path="wallet" element={<WalletPage />} />
-              {/* Redirect legacy routes */}
-              <Route path="planttree" element={<Navigate to="/analyze" replace />} />
-              <Route path="mytrees" element={<Navigate to="/wallet" replace />} />
-              <Route path="debt" element={<Navigate to="/security" replace />} />
-              <Route path="carboncredits" element={<Navigate to="/wallet" replace />} />
-              <Route path="marketplace" element={<Navigate to="/analyze" replace />} />
-              <Route path="environment" element={<Navigate to="/dashboard" replace />} />
-              <Route path="map" element={<Navigate to="/dashboard" replace />} />
-              <Route path="profile" element={<Navigate to="/wallet" replace />} />
-              <Route path="verification" element={<Navigate to="/security" replace />} />
-              <Route path="admin" element={<Navigate to="/security" replace />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="planttree" element={<PlantTree />} />
+              <Route path="mytrees" element={<MyTree />} />
+              <Route path="tree/:id" element={<TreeDetails />} />
+              <Route path="tree/:id/report-cut" element={<ReportCut />} />
+              <Route path="debt" element={<Debt />} />
+              <Route path="certificate/:id" element={<Certificate />} />
+              <Route path="environment" element={<Environment />} />
+              <Route path="marketplace" element={<Marketplace />} />
+              <Route path="carboncredits" element={<CarbonCredits />} />
+              <Route path="map" element={<Map />} />
+              <Route path="profile" element={<Profile />} />
+
+              {/* Verifier / Admin - role enforced */}
+              <Route path="verification" element={
+                <RoleRoute allowedRoles={['verifier', 'admin']}>
+                  <VerificationQueue />
+                </RoleRoute>
+              } />
+
+              {/* Admin only */}
+              <Route path="admin" element={
+                <RoleRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </RoleRoute>
+              } />
             </Route>
           </Routes>
         </Router>

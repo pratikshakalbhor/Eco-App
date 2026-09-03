@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 
+// Supports both controlled (value + onValueChange) and uncontrolled (defaultValue) usage
 export function Tabs({ children, value, onValueChange, defaultValue }) {
   const [internal, setInternal] = useState(defaultValue || "");
   const active = value !== undefined ? value : internal;
@@ -17,7 +18,7 @@ export function Tabs({ children, value, onValueChange, defaultValue }) {
 
 export function TabsList({ children, active, setActive, className = "" }) {
   return (
-    <div className={`flex gap-1 p-1 bg-zb-surface rounded-xl border border-zb-border ${className}`}>
+    <div className={`flex flex-wrap gap-2 ${className}`}>
       {React.Children.map(children, (child) => {
         if (!child) return null;
         return React.cloneElement(child, { active, setActive });
@@ -32,10 +33,10 @@ export function TabsTrigger({ value, children, active, setActive }) {
     <button
       type="button"
       onClick={() => setActive(value)}
-      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
         isActive
-          ? "bg-zb-card text-zb-cyan shadow-sm border border-zb-border"
-          : "text-zb-text-muted hover:text-zb-text-secondary"
+          ? "bg-green-600 text-white shadow-sm"
+          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
       }`}
     >
       {children}
@@ -45,5 +46,5 @@ export function TabsTrigger({ value, children, active, setActive }) {
 
 export function TabsContent({ value, active, children, className = "" }) {
   if (active !== value) return null;
-  return <div className={`mt-4 ${className}`}>{children}</div>;
+  return <div className={className}>{children}</div>;
 }

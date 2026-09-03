@@ -111,8 +111,8 @@ const MapPage = () => {
             <Globe className="w-20 h-20 text-emerald-400 opacity-20" />
         </motion.div>
         <div className="flex flex-col items-center">
-            <h2 className="text-2xl font-black tracking-tighter mb-2">EcoChain GIS Core</h2>
-            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest animate-pulse">Synchronizing Global Asset Ledger...</p>
+            <h2 className="text-2xl font-black tracking-tighter mb-2">Tree Map</h2>
+            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest animate-pulse">Loading tree locations...</p>
         </div>
     </div>
   );
@@ -135,8 +135,8 @@ const MapPage = () => {
                     <Navigation className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                    <h2 className="text-xl font-black text-slate-900 leading-none">Impact Explorer</h2>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time Biosphere Audit</p>
+                    <h2 className="text-xl font-black text-slate-900 leading-none">Tree Map</h2>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Explore all trees on the network</p>
                 </div>
             </div>
             <div className="flex bg-slate-100 p-1 rounded-xl">
@@ -188,14 +188,14 @@ const MapPage = () => {
             className="grid grid-cols-2 gap-4 pointer-events-auto"
         >
             <div className="bg-white/90 backdrop-blur-xl p-5 rounded-[2rem] border border-white/20 shadow-xl">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Assets On Map</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Trees On Map</p>
                 <div className="flex items-end gap-2">
                     <span className="text-3xl font-black text-slate-900">{filteredTrees.length}</span>
                     <span className="text-[10px] font-bold text-emerald-500 mb-1">+{treesList.length - filteredTrees.length} Hidden</span>
                 </div>
             </div>
             <div className="bg-white/90 backdrop-blur-xl p-5 rounded-[2rem] border border-white/20 shadow-xl">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Carbon Shield</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Carbon Absorbed</p>
                 <div className="flex items-end gap-2">
                     <span className="text-3xl font-black text-slate-900">{filteredTrees.reduce((acc, t) => acc + (t.carbon_absorption_rate || 0), 0).toFixed(0)}</span>
                     <span className="text-[10px] font-bold text-slate-400 mb-1">kg/yr</span>
@@ -214,7 +214,7 @@ const MapPage = () => {
                 >
                     <div className="flex items-center justify-between mb-6">
                         <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${selectedTree.is_cut ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
-                            {selectedTree.status?.toUpperCase()} ASSET
+                            {selectedTree.status?.toUpperCase()} TREE
                         </div>
                         <button 
                             onClick={() => setSelectedTree(null)} 
@@ -239,7 +239,7 @@ const MapPage = () => {
                             <h3 className="text-3xl font-black tracking-tighter mb-1 capitalize">{selectedTree.species}</h3>
                             <p className="text-slate-400 text-sm flex items-center gap-2 mb-4">
                                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                {selectedTree.location_name || 'Geo-Locked Asset'}
+                                {selectedTree.location_name || 'Location on map'}
                             </p>
                             <div className="flex items-center gap-4">
                                 <div className="p-2 bg-white/5 rounded-xl text-center flex-1">
@@ -271,7 +271,7 @@ const MapPage = () => {
                 >
                     <div className="flex items-center gap-4 text-slate-500">
                         <Activity className="w-5 h-5 text-emerald-500" />
-                        <p className="text-xs font-bold italic">Select an asset on the map to begin technical audit.</p>
+                        <p className="text-xs font-bold italic">Select a tree on the map to see its details.</p>
                     </div>
                 </motion.div>
             )}
@@ -332,19 +332,19 @@ const MapPage = () => {
              </motion.div>
 
              <div className="bg-white/90 backdrop-blur-xl rounded-[1.5rem] p-4 border border-white/10 text-slate-700 shadow-xl w-64">
-                <p className="text-[10px] font-black uppercase tracking-widest mb-3 opacity-60">GIS Legend</p>
+                <p className="text-[10px] font-black uppercase tracking-widest mb-3 opacity-60">Legend</p>
                 <div className="space-y-2">
                     <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-md bg-emerald-500 rotate-45" />
-                        <span className="text-[10px] font-bold uppercase tracking-tight">Verified Carbon Assets</span>
+                        <span className="text-[10px] font-bold uppercase tracking-tight">Verified Tree</span>
                     </div>
                     <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-md bg-rose-500 rotate-45" />
-                        <span className="text-[10px] font-bold uppercase tracking-tight">Reported Environmental Loss</span>
+                        <span className="text-[10px] font-bold uppercase tracking-tight">Cut / Needs Attention</span>
                     </div>
                     <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-md bg-slate-400 rotate-45" />
-                        <span className="text-[10px] font-bold uppercase tracking-tight">Pending Validation</span>
+                        <span className="text-[10px] font-bold uppercase tracking-tight">Awaiting Verification</span>
                     </div>
                 </div>
              </div>

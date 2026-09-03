@@ -150,9 +150,9 @@ func UpdateTreeGrowth(c *gin.Context) {
 	}
 
 	var req struct {
-		HealthStatus string  `json:"health_status"`
-		Notes        string  `json:"notes"`
-		ImageURL     string  `json:"image_url"`
+		HealthStatus string `json:"health_status"`
+		Notes        string `json:"notes"`
+		ImageURL     string `json:"image_url"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -220,7 +220,7 @@ func GetAdminStats(c *gin.Context) {
 	config.DB.Model(&models.ReplantationDebt{}).Where("status != ?", "CLEARED").Count(&stats.ActiveDebts)
 	config.DB.Model(&models.ReplantationDebt{}).Where("status = ?", "CLEARED").Count(&stats.ClearedDebts)
 	config.DB.Model(&models.CarbonCredit{}).Where("amount > 0").Select("COALESCE(SUM(amount), 0)").Scan(&stats.TotalCredits)
-	config.DB.Model(&models.MarketplaceTransaction{}).Where("status = ?", "CONFIRMED").Select("COALESCE(SUM(total_price), 0)").Scan(&stats.TotalMarketVol)
+	config.DB.Model(&models.MarketplaceTransaction{}).Where("status = ?", "CONFIRMED").Select("COALESCE(SUM(total_inr), 0)").Scan(&stats.TotalMarketVol)
 	config.DB.Model(&models.CutReport{}).Where("status = ?", "PENDING").Count(&stats.PendingCutReports)
 
 	c.JSON(http.StatusOK, stats)

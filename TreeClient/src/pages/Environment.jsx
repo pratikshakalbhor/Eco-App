@@ -66,13 +66,13 @@ export default function Environment() {
               <div className="p-2 bg-emerald-100 rounded-xl text-emerald-700">
                 <Globe className="w-5 h-5" />
               </div>
-              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-[0.2em]">Platform Impact Overview</span>
+              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-[0.2em]">Platform Impact</span>
             </div>
-            <h1 className="text-5xl font-black text-slate-900 tracking-tight">Environmental Health</h1>
-            <p className="text-slate-500 mt-2 text-lg max-w-2xl">Real-time biological monitoring of global tree populations, carbon sequestration metrics, and ecosystem restoration progress.</p>
+            <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Environmental Impact</h1>
+            <p className="text-slate-500 mt-2 text-lg max-w-2xl">A live look at the CO₂ absorbed and the health of all trees across the platform.</p>
           </div>
           <div className="flex items-center gap-4">
-             <Badge className="bg-emerald-500 text-white border-0 px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-200">System Integrity: Nominal</Badge>
+             <Badge className="bg-emerald-500 text-white border-0 px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-200">System Active</Badge>
           </div>
         </div>
 
@@ -83,14 +83,14 @@ export default function Environment() {
             value={stats?.total_trees_verified || 0} 
             icon={ShieldCheck} 
             color="emerald" 
-            unit="Assets"
+            unit="trees"
           />
           <StatCard 
             label="Trees Cut" 
             value={stats?.total_trees_cut || 0} 
             icon={Axe} 
             color="rose" 
-            unit="Assets"
+            unit="trees"
           />
           <StatCard 
             label="CO₂ Absorbed" 
@@ -114,11 +114,11 @@ export default function Environment() {
             unit="kg"
           />
           <StatCard 
-            label="Active Debts" 
+            label="Trees Needing Replant"
             value={stats?.active_debts || 0} 
             icon={AlertTriangle} 
             color="amber" 
-            unit="Queue"
+            unit="trees"
           />
         </div>
 
@@ -213,8 +213,8 @@ export default function Environment() {
         <div className="bg-white p-12 rounded-[4rem] shadow-2xl shadow-emerald-900/5 border border-emerald-50">
           <div className="flex items-center justify-between mb-12">
             <div>
-              <h3 className="text-3xl font-black text-slate-900 tracking-tight">Active Replantation Debts</h3>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Pending ecosystem restoration obligations</p>
+              <h3 className="text-3xl font-black text-slate-900 tracking-tight">Trees Needing Replantation</h3>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Replacement trees requested to restore impact</p>
             </div>
             <Button variant="outline" className="rounded-2xl border-slate-200 font-black uppercase text-[10px] tracking-widest px-8">Export Audit Logs</Button>
           </div>
