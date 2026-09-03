@@ -1,11 +1,18 @@
-import React from 'react'
+import React from "react";
+import { Shield } from "lucide-react";
 
-const Loading = ({height = '100vh'}) => {
+const Loading = ({ height = "100vh", message = "Loading ZeroBridge..." }) => {
   return (
-    <div style={{height}} className='flex items-center justify-center h-screen'>
-      <div className='w-10 h-10 rounded-full border-3 border-purple-500 border-t-transparent animate-spin'>
+    <div style={{ height }} className="flex flex-col items-center justify-center bg-zb-bg gap-4">
+      <div className="relative">
+        <div className="w-12 h-12 bg-gradient-to-br from-zb-cyan to-zb-blue rounded-xl flex items-center justify-center animate-zb-glow">
+          <Shield className="w-6 h-6 text-zb-bg" strokeWidth={2.5} />
+        </div>
+        <div className="absolute inset-0 w-12 h-12 border-2 border-zb-cyan/30 rounded-xl animate-spin" style={{ borderTopColor: "transparent" }} />
       </div>
+      <p className="text-xs text-zb-text-muted font-medium uppercase tracking-widest">{message}</p>
     </div>
-  )
-}
-export default Loading
+  );
+};
+
+export default Loading;

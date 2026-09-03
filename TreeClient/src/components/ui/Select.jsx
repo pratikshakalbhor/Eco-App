@@ -4,7 +4,6 @@ export function Select({ value, onValueChange, children }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
@@ -13,7 +12,6 @@ export function Select({ value, onValueChange, children }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Collect SelectItem children recursively and inject onSelect
   const injectOnSelect = (children) =>
     React.Children.map(children, (child) => {
       if (!child) return child;
@@ -31,7 +29,6 @@ export function Select({ value, onValueChange, children }) {
       return child;
     });
 
-  // Find current label from SelectItem children
   let currentLabel = null;
   const findLabel = (children) => {
     React.Children.forEach(children, (child) => {
@@ -47,7 +44,6 @@ export function Select({ value, onValueChange, children }) {
 
   return (
     <div ref={ref} className="relative">
-      {/* Trigger area — renders SelectTrigger + SelectValue children */}
       <div onClick={() => setOpen(!open)}>
         {React.Children.map(children, (child) => {
           if (child?.type === SelectTrigger) {
@@ -64,9 +60,8 @@ export function Select({ value, onValueChange, children }) {
         })}
       </div>
 
-      {/* Dropdown */}
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-50 mt-1 w-full bg-zb-card border border-zb-border rounded-xl shadow-2xl max-h-60 overflow-auto">
           {React.Children.map(children, (child) => {
             if (child?.type === SelectContent) {
               return injectOnSelect(child.props.children);
@@ -81,9 +76,9 @@ export function Select({ value, onValueChange, children }) {
 
 export function SelectTrigger({ children, className = "" }) {
   return (
-    <div className={`flex items-center justify-between border border-gray-300 rounded-xl px-3 py-2 cursor-pointer bg-white hover:border-green-400 transition-colors ${className}`}>
+    <div className={`flex items-center justify-between border border-zb-border rounded-xl px-3 py-2.5 cursor-pointer bg-zb-surface hover:border-zb-border-light transition-colors text-sm ${className}`}>
       {children}
-      <svg className="w-4 h-4 text-gray-400 ml-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-4 h-4 text-zb-text-muted ml-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
       </svg>
     </div>
@@ -100,8 +95,8 @@ export function SelectItem({ value, children, onSelect, selected }) {
   return (
     <div
       onClick={() => onSelect && onSelect(value)}
-      className={`px-3 py-2 cursor-pointer text-sm transition-colors ${
-        selected ? "bg-green-50 text-green-700 font-medium" : "hover:bg-gray-50 text-gray-800"
+      className={`px-3 py-2.5 cursor-pointer text-sm transition-colors ${
+        selected ? "bg-zb-cyan/10 text-zb-cyan" : "hover:bg-zb-card-hover text-zb-text-secondary"
       }`}
     >
       {children}
@@ -113,7 +108,7 @@ SelectItem.displayName = "SelectItem";
 
 export function SelectValue({ placeholder, currentLabel }) {
   return (
-    <span className={currentLabel ? "text-gray-900" : "text-gray-400"}>
+    <span className={currentLabel ? "text-zb-text" : "text-zb-text-muted"}>
       {currentLabel || placeholder || "Select..."}
     </span>
   );

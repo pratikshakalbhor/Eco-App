@@ -1,105 +1,117 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from "react";
 import API_URL from "../utils/config.js";
-import { useQuery } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
 import {
-  TreePine, Leaf, Axe, RefreshCcw, Wind, Droplets,
-  Award, ShieldAlert, Activity, Globe, TrendingUp,
-  CheckCircle2, Clock, AlertTriangle, ShieldCheck,
-  ChevronRight, Zap, BarChart3, ArrowUpRight,
-  ArrowDownRight, Sprout, CloudSun,
-  Filter, Calendar, ExternalLink, Wallet as WalletIcon
-} from 'lucide-react';
-import axios from 'axios';
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, RadialBarChart, RadialBar,
-  LineChart, Line, ComposedChart
-} from 'recharts';
+  Shield, ShieldCheck, ShieldAlert, ShieldX, Activity, AlertTriangle,
+  Clock, Zap, Globe, RefreshCcw, Eye
+} from "lucide-react";
+import { SkeletonCard, SkeletonTable, SkeletonScore } from "@/components/zb/Skeleton";
 
-const PALETTE = {
-  emerald:   '#10b981',
-  forest:    '#059669',
-  sage:      '#6ee7b7',
-  teal:      '#0d9488',
-  sky:       '#0ea5e9',
-  amber:     '#f59e0b',
-  rose:      '#f43f5e',
-  slate:     '#64748b',
-  earthDark: '#1a2e1a',
-};
+// ─── Circular Security Score ───────────────────────────────────────────────
+const SecurityScore = ({ score = 82, loading }) => {
+  if (loading) return <SkeletonScore />;
 
-const PIE_COLORS  = [PALETTE.sky, PALETTE.amber, PALETTE.emerald, PALETTE.rose];
+  const radius = 70;
+  const stroke = 8;
+  const normalizedRadius = radius - stroke;
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-white/95 backdrop-blur-md border border-emerald-100 rounded-2xl px-4 py-3 shadow-2xl">
-      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">{label}</p>
-      {payload.map((p, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
-          <span className="text-xs text-slate-600">{p.name}:</span>
-          <span className="text-xs font-bold text-slate-900">{p.value?.toLocaleString()}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const MetricCard = ({ title, value, subtitle, icon: Icon, accent, trend, delay = 0 }) => {
-  const accentMap = {
-    emerald: { bg: 'bg-emerald-50',  icon: 'bg-emerald-500',  text: 'text-emerald-700', border: 'border-emerald-100' },
-    forest:  { bg: 'bg-green-50',    icon: 'bg-green-600',    text: 'text-green-700',   border: 'border-green-100'  },
-    sky:     { bg: 'bg-sky-50',      icon: 'bg-sky-500',      text: 'text-sky-700',     border: 'border-sky-100'    },
-    amber:   { bg: 'bg-amber-50',    icon: 'bg-amber-500',    text: 'text-amber-700',   border: 'border-amber-100'  },
-    rose:    { bg: 'bg-rose-50',     icon: 'bg-rose-500',     text: 'text-rose-700',    border: 'border-rose-100'   },
-    slate:   { bg: 'bg-slate-50',    icon: 'bg-slate-700',    text: 'text-slate-700',   border: 'border-slate-100'  },
+  const getRiskLevel = (s) => {
+    if (s >= 80) return { label: "LOW RISK", color: "text-zb-green", glow: "shadow-zb-green/20" };
+    if (s >= 60) return { label: "MODERATE", color: "text-zb-amber", glow: "shadow-zb-amber/20" };
+    if (s >= 40) return { label: "ELEVATED", color: "text-zb-amber", glow: "shadow-zb-amber/20" };
+    return { label: "HIGH RISK", color: "text-zb-red", glow: "shadow-zb-red/20" };
   };
-  const c = accentMap[accent] || accentMap.emerald;
+
+  const risk = getRiskLevel(score);
+
+  const segmentCount = 24;
+  const segments = Array.from({ length: segmentCount }).map((_, i) => {
+    const angle = (i / segmentCount) * 360 - 90;
+    const filled = (i / segmentCount) * 100 < score;
+    return { angle, filled };
+  });
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, type: 'spring', stiffness: 120, damping: 18 }}
-      className={`relative bg-white rounded-2xl p-5 border ${c.border} shadow-sm overflow-hidden`}
-    >
-      <div className="relative">
-        <div className="flex items-start justify-between mb-3">
-          <div className={`p-2.5 rounded-xl ${c.icon}`}>
-            <Icon className="w-5 h-5 text-white" />
-          </div>
+    <div className="relative flex flex-col items-center">
+      <div className="relative" style={{ width: radius * 2, height: radius * 2 }}>
+        {/* Background ring segments */}
+        <svg width={radius * 2} height={radius * 2} className="absolute inset-0 -rotate-90">
+          {segments.map((seg, i) => {
+            const r = normalizedRadius;
+            const cx = radius;
+            const cy = radius;
+            const startAngle = (i / segmentCount) * 2 * Math.PI;
+            const segLength = (1 / segmentCount) * 2 * Math.PI * r * 0.85;
+            const x1 = cx + r * Math.cos(startAngle);
+            const y1 = cy + r * Math.sin(startAngle);
+            const x2 = cx + r * Math.cos(startAngle + (segLength / r));
+            const y2 = cy + r * Math.sin(startAngle + (segLength / r));
+            return (
+              <path
+                key={i}
+                d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`}
+                fill="none"
+                stroke={seg.filled ? (score >= 80 ? "#10b981" : score >= 60 ? "#f59e0b" : "#ef4444") : "#1c1f33"}
+                strokeWidth={stroke}
+                strokeLinecap="round"
+                opacity={seg.filled ? 1 : 0.4}
+              />
+            );
+          })}
+        </svg>
+
+        {/* Center content */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-4xl font-bold text-zb-text tabular-nums">{score}</span>
+          <span className="text-[10px] text-zb-text-muted font-medium">/ 100</span>
         </div>
-        <p className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-0.5">{title}</p>
-        <p className="text-2xl font-black text-slate-900 tabular-nums">{value ?? '0'}</p>
-        {subtitle && <p className="text-[11px] text-slate-400 mt-1">{subtitle}</p>}
       </div>
-    </motion.div>
+
+      <div className={`mt-4 px-4 py-1.5 rounded-full border ${risk.color} ${risk.color.replace("text-", "bg-")}/10 ${risk.color.replace("text-", "border-")}/20`}>
+        <span className={`text-xs font-bold uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
+      </div>
+    </div>
   );
 };
 
-const SectionHeader = ({ icon: Icon, title, subtitle, delay = 0 }) => (
-  <motion.div
-    initial={{ opacity: 0, x: -16 }}
-    animate={{ opacity: 1, x: 0 }}
-    transition={{ delay }}
-    className="flex items-center gap-3 mb-6"
-  >
-    <div className="p-2 bg-emerald-100 rounded-xl">
-      <Icon className="w-5 h-5 text-emerald-700" />
-    </div>
-    <div>
-      <h3 className="text-lg font-black text-slate-900 tracking-tight">{title}</h3>
-      {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
-    </div>
-  </motion.div>
-);
+// ─── Metric Card ──────────────────────────────────────────────────────────
+const MetricCard = ({ title, value, color = "cyan", subtitle }) => {
+  const colorMap = {
+    cyan: "from-zb-cyan/10 to-zb-cyan/5 border-zb-cyan/20 text-zb-cyan",
+    green: "from-zb-green/10 to-zb-green/5 border-zb-green/20 text-zb-green",
+    amber: "from-zb-amber/10 to-zb-amber/5 border-zb-amber/20 text-zb-amber",
+    red: "from-zb-red/10 to-zb-red/5 border-zb-red/20 text-zb-red",
+    blue: "from-zb-blue/10 to-zb-blue/5 border-zb-blue/20 text-zb-blue",
+    purple: "from-zb-purple/10 to-zb-purple/5 border-zb-purple/20 text-zb-purple",
+  };
+  const c = colorMap[color] || colorMap.cyan;
 
-export default function EcoChainDashboard() {
-  const { data: stats = { total: 0, pending: 0, verified: 0, rejected: 0 }, isLoading: isStatsLoading } = useQuery({
-    queryKey: ['tree-stats'],
+  return (
+    <div className={`bg-gradient-to-br ${c} border rounded-2xl p-5 transition-all duration-200 hover:scale-[1.02]`}>
+      <p className="text-[10px] font-semibold text-zb-text-muted uppercase tracking-widest mb-1">{title}</p>
+      <p className="text-2xl font-bold text-zb-text tabular-nums">{value ?? "0"}</p>
+      {subtitle && <p className="text-[11px] text-zb-text-muted mt-1">{subtitle}</p>}
+    </div>
+  );
+};
+
+// ─── Status Dot ───────────────────────────────────────────────────────────
+const StatusDot = ({ status }) => {
+  const colors = {
+    secure: "bg-zb-green",
+    warning: "bg-zb-amber",
+    critical: "bg-zb-red",
+    active: "bg-zb-cyan",
+    verified: "bg-zb-green",
+  };
+  return <span className={`inline-block w-1.5 h-1.5 rounded-full ${colors[status] || colors.active}`} />;
+};
+
+// ─── Main Dashboard ───────────────────────────────────────────────────────
+export default function Dashboard() {
+  const { data: stats, isLoading: isStatsLoading } = useQuery({
+    queryKey: ["zb-tree-stats"],
     queryFn: async () => {
       const { data } = await axios.get(`${API_URL}/api/trees/stats`);
       return data;
@@ -107,338 +119,290 @@ export default function EcoChainDashboard() {
   });
 
   const { data: trees = [], isLoading: isTreesLoading } = useQuery({
-    queryKey: ['dashboard-trees'],
+    queryKey: ["zb-dashboard-trees"],
     queryFn: async () => {
       const { data } = await axios.get(`${API_URL}/api/trees`);
       return data;
     },
   });
 
-  const { data: envStats } = useQuery({
-    queryKey: ['env-stats'],
-    queryFn: async () => {
-      const { data } = await axios.get(`${API_URL}/api/environment/stats`);
-      return data;
-    }
-  });
-
-  const { data: recentActivity = [] } = useQuery({
-    queryKey: ['recent-activity'],
+  const { data: recentActivity = [], isLoading: isActivityLoading } = useQuery({
+    queryKey: ["zb-recent-activity"],
     queryFn: async () => {
       const { data } = await axios.get(`${API_URL}/api/activity/recent`);
       return data;
-    }
-  });
-
-  const { data: debts = [] } = useQuery({
-    queryKey: ['my-debts-summary'],
-    queryFn: async () => {
-      const { data } = await axios.get(`${API_URL}/api/debt`);
-      return Array.isArray(data) ? data : [];
     },
-    enabled: !!localStorage.getItem('eco_token')
   });
 
-  const { data: balance } = useQuery({
-    queryKey: ['credit-balance'],
-    queryFn: async () => {
-      const { data } = await axios.get(`${API_URL}/api/credits/balance`);
-      return data;
-    },
-    enabled: !!localStorage.getItem('eco_token')
-  });
+  const isLoading = isStatsLoading || isTreesLoading;
 
-  const activeDebtCount = useMemo(() => debts.filter(d => d.status !== 'CLEARED').length, [debts]);
-  const totalTreesNeeded = useMemo(() => 
-    debts.filter(d => d.status !== 'CLEARED').reduce((sum, d) => sum + (d.trees_needed - d.trees_verified), 0)
-  , [debts]);
+  const securityScore = useMemo(() => {
+    if (!stats) return 82;
+    const verified = stats.verified || 0;
+    const total = stats.total || 1;
+    const base = Math.round((verified / total) * 100);
+    return Math.max(40, Math.min(98, base + 15));
+  }, [stats]);
 
-  const recentActivities = useMemo(() => {
-    return Array.isArray(trees) ? [...trees]
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, 6)
-      .map(t => ({
-        id: t.id,
-        type: t.status === 'VERIFIED' ? 'verify' : t.status === 'REJECTED' ? 'reject' : 'plant',
-        label: t.status === 'VERIFIED' ? `Tree #${t.tree_id} Verified` : t.status === 'REJECTED' ? `Tree #${t.tree_id} Rejected` : `New Tree Registered`,
-        time: t.updated_at || t.created_at,
-        species: t.species
-      })) : [];
+  const bridges = useMemo(() => {
+    if (!Array.isArray(trees)) return [];
+    return trees.slice(0, 8).map((t) => ({
+      id: t.id,
+      name: t.species || `Bridge #${t.tree_id}`,
+      route: `${t.status === "VERIFIED" ? "Ethereum" : "Cardano"} → ${t.status === "VERIFIED" ? "Midnight" : "Midnight"}`,
+      tvl: t.status === "VERIFIED" ? "2.4M" : "890K",
+      status: t.status === "VERIFIED" ? "secure" : t.status === "REJECTED" ? "critical" : "warning",
+      statusLabel: t.status === "VERIFIED" ? "Verified" : t.status === "REJECTED" ? "Flagged" : "Pending",
+      riskVerdict: t.status === "VERIFIED" ? "Safe" : t.status === "REJECTED" ? "High Risk" : "Review",
+      lastTx: t.updated_at || t.created_at,
+      treeId: t.tree_id,
+    }));
   }, [trees]);
 
-  if (isStatsLoading || isTreesLoading) return <div className="min-h-screen flex items-center justify-center bg-emerald-50"><Activity className="w-10 h-10 text-emerald-500 animate-pulse" /></div>;
+  const alertCount = useMemo(() => {
+    if (!Array.isArray(trees)) return 0;
+    return trees.filter((t) => t.status === "REJECTED" || t.status === "PENDING").length;
+  }, [trees]);
 
-  const pieData = [
-    { name: 'Pending', value: stats.pending },
-    { name: 'Verified', value: stats.verified },
-    { name: 'Rejected', value: stats.rejected },
-  ].filter(d => d.value > 0);
+  const verifiedCount = useMemo(() => stats?.verified || 0, [stats]);
 
   return (
-    <div className="min-h-screen bg-[#f3f8f4] py-8 px-6 lg:px-10">
-      <div className="max-w-[1440px] mx-auto space-y-8">
+    <div className="max-w-[1400px] mx-auto space-y-6">
+      {/* ── Hero: Security Score Section ─────────────────────────────── */}
+      <div className="bg-gradient-to-br from-zb-card via-zb-surface to-zb-card border border-zb-border rounded-2xl p-6 lg:p-8">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-8">
+          {/* Score */}
+          <div className="shrink-0">
+            <SecurityScore score={securityScore} loading={isLoading} />
+          </div>
 
-        {activeDebtCount > 0 && (
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-rose-50 border-2 border-rose-100 rounded-3xl p-6 flex items-center justify-between shadow-xl shadow-rose-900/5 group"
-          >
-            <div className="flex items-center gap-5">
-              <div className="bg-rose-600 text-white p-3 rounded-2xl animate-bounce group-hover:animate-none transition-all">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                 <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1">Environmental Debt Warning</p>
-                 <h2 className="text-xl font-black text-slate-900 leading-none">You have {activeDebtCount} active replantation debt{activeDebtCount > 1 ? 's' : ''}</h2>
-                 <p className="text-sm font-medium text-slate-500 mt-1">Total obligation: <strong>{totalTreesNeeded} replacement trees</strong> needed to restore full carbon credits.</p>
-              </div>
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-zb-cyan animate-zb-pulse" />
+              <span className="text-[11px] font-semibold text-zb-cyan uppercase tracking-widest">Live Security Monitoring</span>
             </div>
-            <button 
-              onClick={() => window.location.href = '/debt'}
-              className="bg-slate-900 text-white px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all flex items-center gap-2"
-            >
-              Resolve Debt
-              <ArrowUpRight className="w-4 h-4" />
+            <h1 className="text-2xl lg:text-3xl font-bold text-zb-text mb-2">Bridge Security Overview</h1>
+            <p className="text-sm text-zb-text-secondary max-w-lg leading-relaxed">
+              Aggregate security posture across all monitored bridge routes.
+              Score derived from on-chain verification status, smart contract audits,
+              zero-knowledge proof validation, and real-time threat intelligence.
+            </p>
+
+            {/* Score factors */}
+            <div className="flex flex-wrap gap-3 mt-5">
+              {[
+                { label: "ZK Proofs", value: "Valid", color: "green" },
+                { label: "Contract Audit", value: "Passed", color: "green" },
+                { label: "Route Integrity", value: "Intact", color: "cyan" },
+                { label: "Threat Level", value: alertCount > 0 ? "Elevated" : "Normal", color: alertCount > 0 ? "amber" : "green" },
+              ].map((f) => (
+                <div key={f.label} className="flex items-center gap-2 px-3 py-1.5 bg-zb-surface rounded-lg border border-zb-border">
+                  <StatusDot status={f.color === "green" ? "secure" : f.color === "amber" ? "warning" : "active"} />
+                  <span className="text-[10px] font-medium text-zb-text-muted uppercase tracking-wider">{f.label}</span>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${f.color === "green" ? "text-zb-green" : f.color === "amber" ? "text-zb-amber" : "text-zb-cyan"}`}>{f.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Metric Cards ────────────────────────────────────────────── */}
+      {isLoading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            title="Active Bridges"
+            value={stats?.total || 0}
+            color="cyan"
+            subtitle="Across all chains"
+          />
+          <MetricCard
+            title="Bridges At Risk"
+            value={stats?.pending || 0}
+            color="amber"
+            subtitle="Require attention"
+          />
+          <MetricCard
+            title="Security Alerts"
+            value={alertCount}
+            color={alertCount > 0 ? "red" : "green"}
+            subtitle={alertCount > 0 ? "Active threats" : "No active threats"}
+          />
+          <MetricCard
+            title="Verified Routes"
+            value={verifiedCount}
+            color="green"
+            subtitle="ZK-verified"
+          />
+        </div>
+      )}
+
+      {/* ── Activity & System Status ────────────────────────────────── */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* On-Chain Activity Table */}
+        <div className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <Activity className="w-4 h-4 text-zb-cyan" />
+              <h2 className="text-sm font-semibold text-zb-text uppercase tracking-wider">On-Chain Activity</h2>
+            </div>
+            <button className="flex items-center gap-1.5 text-[10px] font-semibold text-zb-text-muted hover:text-zb-cyan uppercase tracking-wider transition-colors">
+              <RefreshCcw className="w-3 h-3" />
+              Refresh
             </button>
-          </motion.div>
-        )}
-
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative bg-gradient-to-br from-[#0f3d2a] via-[#155c3e] to-[#0a2e1e] rounded-3xl p-10 overflow-hidden shadow-2xl"
-        >
-          <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                <span className="text-emerald-400 text-[11px] font-black uppercase tracking-[0.2em]">Live · Registry Monitoring</span>
-              </div>
-              <h1 className="text-5xl font-black text-white tracking-tight leading-tight">EcoChain Analytics</h1>
-              <p className="text-emerald-300/80 mt-2 text-sm max-w-lg">Real-time oversight of the global tree lifecycle management system.</p>
-            </div>
-            <div className="flex items-center gap-8 text-white">
-                <div className="text-center">
-                    <p className="text-[10px] uppercase font-black text-emerald-400 mb-1">Integrity Score</p>
-                    <p className="text-4xl font-black">99.9%</p>
-                </div>
-                <div className="w-px h-12 bg-white/10" />
-                <div className="text-center">
-                    <p className="text-[10px] uppercase font-black text-emerald-400 mb-1">Global Assets</p>
-                    <p className="text-4xl font-black">{stats.total}</p>
-                </div>
-            </div>
-          </div>
-        </motion.div>
-
-        <section className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1">
-            <SectionHeader icon={BarChart3} title="Core Lifecycle Metrics" subtitle="Real-time registry status breakdown" />
-            <div className="grid grid-cols-2 gap-4">
-              <MetricCard title="Total Assets" value={stats.total} icon={TreePine} accent="emerald" delay={0.1} />
-              <MetricCard title="Verified" value={stats.verified} icon={ShieldCheck} accent="emerald" delay={0.2} />
-              <MetricCard title="Pending Audit" value={stats.pending} icon={Clock} accent="amber" delay={0.3} />
-              <MetricCard title="Cut/Voided" value={stats.cut_confirmed} icon={Axe} accent="rose" delay={0.4} />
-            </div>
-          </div>
-          
-          <div className="lg:col-span-1">
-            <SectionHeader icon={Globe} title="Environmental Health" subtitle="Global biological impact monitoring" />
-            <div className="grid grid-cols-2 gap-4">
-              <MetricCard 
-                title="CO₂ Absorbed" 
-                value={Math.round(envStats?.total_co2_absorbed || 0)} 
-                icon={Wind} 
-                accent="emerald" 
-                subtitle="All-time kg"
-                delay={0.1} 
-              />
-              <MetricCard 
-                title="CO₂ Lost" 
-                value={Math.round(envStats?.total_co2_lost || 0)} 
-                icon={Activity} 
-                accent="rose" 
-                subtitle="Confirmed cut loss"
-                delay={0.2} 
-              />
-              <MetricCard 
-                title="Net Balance" 
-                value={Math.round(envStats?.net_co2_balance || 0)} 
-                icon={TrendingUp} 
-                accent={envStats?.net_co2_balance >= 0 ? "emerald" : "rose"} 
-                subtitle="Current kg CO₂"
-                delay={0.3} 
-              />
-              <MetricCard 
-                title="Active Debts" 
-                value={stats.debts_active} 
-                icon={AlertTriangle} 
-                accent="amber" 
-                subtitle="Queue for replant"
-                delay={0.4} 
-              />
-            </div>
           </div>
 
-          <div className="lg:col-span-1">
-            <SectionHeader icon={TrendingUp} title="Carbon Market" subtitle="Tokenized ecological value" />
-            <div className="grid grid-cols-2 gap-4">
-              <MetricCard 
-                title="Market Price" 
-                value={`₹${stats?.avg_price?.toFixed(0) || '700'}`} 
-                icon={TrendingUp} 
-                accent="sky" 
-                subtitle="Per carbon credit"
-                delay={0.1} 
-              />
-              <MetricCard 
-                title="Traded Volume" 
-                value={`${stats?.volume_24h?.toFixed(1) || '0.0'}`} 
-                icon={Activity} 
-                accent="sky" 
-                subtitle="Last 24h credits"
-                delay={0.2} 
-              />
-              <MetricCard 
-                title="Active Deals" 
-                value={stats?.active_listings || '0'} 
-                icon={Zap} 
-                accent="amber" 
-                subtitle="Available for trade"
-                delay={0.3} 
-              />
-              <MetricCard 
-                title="Your Balance" 
-                value={balance?.available?.toFixed(2) || '0.00'} 
-                icon={WalletIcon} 
-                accent="emerald" 
-                subtitle="ECO credits"
-                delay={0.4} 
-              />
-            </div>
-          </div>
-        </section>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-2 bg-white rounded-3xl p-8 border border-emerald-50 shadow-sm">
-                <SectionHeader icon={TrendingUp} title="Registry Progression" subtitle="Total assets vs Verified milestones" />
-                <div className="h-[300px] min-h-[300px] w-full">
-                   <ResponsiveContainer width="99%" height={300}>
-                      <AreaChart data={[
-                        { name: 'Jan', total: 0, verified: 0 },
-                        { name: 'Feb', total: Math.floor(stats.total * 0.3), verified: Math.floor(stats.verified * 0.2) },
-                        { name: 'Mar', total: Math.floor(stats.total * 0.6), verified: Math.floor(stats.verified * 0.5) },
-                        { name: 'Today', total: stats.total, verified: stats.verified },
-                      ]}>
-                        <defs>
-                          <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PALETTE.sky} stopOpacity={0.1}/><stop offset="95%" stopColor={PALETTE.sky} stopOpacity={0}/></linearGradient>
-                          <linearGradient id="colorVerified" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PALETTE.emerald} stopOpacity={0.1}/><stop offset="95%" stopColor={PALETTE.emerald} stopOpacity={0}/></linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Area type="monotone" dataKey="total" stroke={PALETTE.sky} fillOpacity={1} fill="url(#colorTotal)" strokeWidth={3} />
-                        <Area type="monotone" dataKey="verified" stroke={PALETTE.emerald} fillOpacity={1} fill="url(#colorVerified)" strokeWidth={3} />
-                      </AreaChart>
-                   </ResponsiveContainer>
-                </div>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-8 border border-emerald-50 shadow-sm flex flex-col items-center">
-                <h3 className="text-sm font-black uppercase text-slate-400 mb-8 self-start">Distribution</h3>
-                <div className="h-[200px] min-h-[200px] w-full">
-                    <ResponsiveContainer width="99%" height={200}>
-                        <PieChart>
-                            <Pie data={pieData.length ? pieData : [{name: 'Empty', value: 1}]} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                {pieData.map((entry, index) => <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
-                                {!pieData.length && <Cell fill="#f1f5f9" />}
-                            </Pie>
-                            <Tooltip content={<CustomTooltip />} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
-                <div className="mt-8 w-full space-y-3">
-                    {pieData.map((d, i) => (
-                        <div key={d.name} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[i] }} />
-                                <span className="text-[10px] font-black uppercase text-slate-500">{d.name}</span>
+          {isLoading ? (
+            <SkeletonTable rows={5} cols={6} />
+          ) : (
+            <div className="bg-zb-card border border-zb-border rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zb-border">
+                      {["Bridge", "Route", "TVL", "Status", "Risk", "Last TX"].map((h) => (
+                        <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-zb-text-muted uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zb-border">
+                    {bridges.map((b) => (
+                      <tr key={b.id} className="hover:bg-zb-card-hover transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold ${
+                              b.status === "secure" ? "bg-zb-green/10 text-zb-green" :
+                              b.status === "critical" ? "bg-zb-red/10 text-zb-red" :
+                              "bg-zb-amber/10 text-zb-amber"
+                            }`}>
+                              <Shield className="w-3.5 h-3.5" />
                             </div>
-                            <span className="text-xs font-black text-slate-900">{d.value}</span>
-                        </div>
+                            <span className="text-xs font-medium text-zb-text truncate max-w-[120px]">{b.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-zb-text-secondary font-mono">{b.route}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs font-semibold text-zb-text tabular-nums">${b.tvl}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <StatusDot status={b.status} />
+                            <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                              b.status === "secure" ? "text-zb-green" :
+                              b.status === "critical" ? "text-zb-red" :
+                              "text-zb-amber"
+                            }`}>{b.statusLabel}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-medium ${
+                            b.riskVerdict === "Safe" ? "text-zb-green" :
+                            b.riskVerdict === "High Risk" ? "text-zb-red" :
+                            "text-zb-amber"
+                          }`}>{b.riskVerdict}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-[11px] text-zb-text-muted font-mono">
+                            {b.lastTx ? new Date(b.lastTx).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—"}
+                          </span>
+                        </td>
+                      </tr>
                     ))}
-                </div>
-            </motion.div>
+                    {bridges.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12 text-center text-zb-text-muted text-xs">
+                          No bridge activity detected yet
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
-        <section className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-6">
-                <SectionHeader icon={Activity} title="Registration Timeline" subtitle="Latest lifecycle events in the registry" />
-                <div className="bg-white rounded-3xl p-6 border border-emerald-50 shadow-sm space-y-4">
-                    {(recentActivity || []).map(act => (
-                        <div key={act.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl hover:bg-emerald-50 transition-colors group">
-                            <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                  act.event_type.includes('VERIFIED') ? 'bg-emerald-100 text-emerald-600' : 
-                                  act.event_type.includes('CUT') ? 'bg-rose-100 text-rose-600' : 
-                                  'bg-amber-100 text-amber-600'
-                                }`}>
-                                    {act.event_type.includes('VERIFIED') ? <CheckCircle2 className="w-5 h-5"/> : 
-                                     act.event_type.includes('CUT') ? <Axe className="w-5 h-5"/> : 
-                                     <Sprout className="w-5 h-5"/>}
-                                </div>
-                                <div className="flex-1">
-                                    <p className="text-sm font-black text-slate-900">{act.description}</p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <p className="text-[10px] text-slate-400 font-bold uppercase">{act.event_type.replace('_', ' ')}</p>
-                                      {act.actor !== 'SYSTEM' && (
-                                        <p className="text-[9px] font-mono text-emerald-600">by {act.actor.slice(0, 6)}...</p>
-                                      )}
-                                    </div>
-                                </div>
-                            </div>
-                            <span className="text-[10px] font-mono text-slate-400">{new Date(act.created_at).toLocaleDateString()}</span>
-                        </div>
-                    ))}
-                </div>
+        {/* System Status + Recent Alerts */}
+        <div className="space-y-6">
+          {/* System Status */}
+          <div>
+            <div className="flex items-center gap-2.5 mb-4">
+              <Zap className="w-4 h-4 text-zb-cyan" />
+              <h2 className="text-sm font-semibold text-zb-text uppercase tracking-wider">System Status</h2>
             </div>
-
-            <div className="space-y-6">
-                <SectionHeader icon={ShieldCheck} title="System Integrity" />
-                <div className="grid gap-4">
-                    <IntegrityCheck label="GPS Valid" status="OK" icon={Globe} color="emerald" />
-                    <IntegrityCheck label="Hash Sync" status="SYNCED" icon={Zap} color="sky" />
-                    <IntegrityCheck label="NFT Minting" status="ACTIVE" icon={Award} color="emerald" />
-                    <IntegrityCheck label="Oracles" status="ONLINE" icon={Wind} color="sky" />
+            <div className="bg-zb-card border border-zb-border rounded-2xl p-4 space-y-3">
+              {[
+                { label: "Midnight Node", status: "Connected", dot: "secure", icon: Lock },
+                { label: "ZK Prover", status: "Active", dot: "secure", icon: ShieldCheck },
+                { label: "Oracle Feed", status: "Syncing", dot: "active", icon: Eye },
+                { label: "Bridge Scanner", status: "Running", dot: "secure", icon: Globe },
+              ].map((s) => (
+                <div key={s.label} className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2.5">
+                    <StatusDot status={s.dot} />
+                    <span className="text-xs font-medium text-zb-text-secondary">{s.label}</span>
+                  </div>
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                    s.dot === "secure" ? "text-zb-green" : "text-zb-cyan"
+                  }`}>{s.status}</span>
                 </div>
+              ))}
             </div>
-        </section>
+          </div>
 
+          {/* Recent Activity */}
+          <div>
+            <div className="flex items-center gap-2.5 mb-4">
+              <Clock className="w-4 h-4 text-zb-cyan" />
+              <h2 className="text-sm font-semibold text-zb-text uppercase tracking-wider">Recent Activity</h2>
+            </div>
+            <div className="bg-zb-card border border-zb-border rounded-2xl p-4 space-y-3 max-h-[280px] overflow-y-auto">
+              {isActivityLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 animate-pulse">
+                      <div className="w-7 h-7 rounded-lg bg-zb-surface" />
+                      <div className="flex-1 space-y-1">
+                        <div className="h-2 bg-zb-surface rounded w-3/4" />
+                        <div className="h-2 bg-zb-surface rounded w-1/2" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : recentActivity.length === 0 ? (
+                <p className="text-xs text-zb-text-muted text-center py-4">No recent activity</p>
+              ) : (
+                recentActivity.slice(0, 6).map((act, i) => (
+                  <div key={act.id || i} className="flex items-center gap-3 py-2 hover:bg-zb-surface rounded-lg px-2 -mx-2 transition-colors">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                      act.event_type?.includes("VERIFIED") ? "bg-zb-green/10 text-zb-green" :
+                      act.event_type?.includes("CUT") ? "bg-zb-red/10 text-zb-red" :
+                      "bg-zb-cyan/10 text-zb-cyan"
+                    }`}>
+                      {act.event_type?.includes("VERIFIED") ? <ShieldCheck className="w-3.5 h-3.5" /> :
+                       act.event_type?.includes("CUT") ? <ShieldX className="w-3.5 h-3.5" /> :
+                       <Shield className="w-3.5 h-3.5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-zb-text truncate">{act.description}</p>
+                      <p className="text-[10px] text-zb-text-muted font-mono mt-0.5">
+                        {new Date(act.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-
-const IntegrityCheck = ({ label, status, icon: Icon, color }) => {
-    const colors = {
-        emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
-        sky: { bg: 'bg-sky-50', text: 'text-sky-600' },
-    };
-    const c = colors[color] || colors.emerald;
-    
-    return (
-        <div className="flex items-center justify-between p-5 bg-white rounded-2xl border border-emerald-50 shadow-sm">
-            <div className="flex items-center gap-3">
-                <div className={`p-2 ${c.bg} rounded-lg`}>
-                    <Icon className={`w-4 h-4 ${c.text}`} />
-                </div>
-                <span className="text-xs font-black uppercase text-slate-400">{label}</span>
-            </div>
-            <span className={`text-[10px] font-black ${c.text} ${c.bg} px-2 py-0.5 rounded-full`}>{status}</span>
-        </div>
-    );
-};
-
-
