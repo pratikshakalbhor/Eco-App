@@ -55,6 +55,10 @@ func main() {
 	routes.SetupRoutes(r)
 
 	// Start Server
-	log.Println("EcoChain Backend running on http://localhost:8080")
-	r.Run(":8080")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("EcoChain Backend running on http://0.0.0.0:%s", port)
+	r.Run("0.0.0.0:" + port)
 }
