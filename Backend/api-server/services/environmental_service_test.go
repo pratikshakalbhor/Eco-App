@@ -13,9 +13,9 @@ func approxEqual(a, b, epsilon float64) bool {
 
 func TestCalculateEnvironmentalLoss_YoungTree(t *testing.T) {
 	tree := models.Tree{
-		PlantedAt:           time.Now().AddDate(0, -6, 0), // 6 months ago
+		PlantedAt:            time.Now().AddDate(0, -6, 0), // 6 months ago
 		CarbonAbsorptionRate: 20.0,
-		Species:             "pine",
+		Species:              "pine",
 	}
 
 	result := CalculateEnvironmentalLoss(tree)
@@ -38,9 +38,9 @@ func TestCalculateEnvironmentalLoss_YoungTree(t *testing.T) {
 
 func TestCalculateEnvironmentalLoss_MatureTree(t *testing.T) {
 	tree := models.Tree{
-		PlantedAt:           time.Now().AddDate(-6, 0, 0), // 6 years ago
+		PlantedAt:            time.Now().AddDate(-6, 0, 0), // 6 years ago
 		CarbonAbsorptionRate: 25.0,
-		Species:             "pine",
+		Species:              "pine",
 	}
 
 	result := CalculateEnvironmentalLoss(tree)
@@ -58,9 +58,9 @@ func TestCalculateEnvironmentalLoss_MatureTree(t *testing.T) {
 
 func TestCalculateEnvironmentalLoss_OakTree(t *testing.T) {
 	tree := models.Tree{
-		PlantedAt:           time.Now().AddDate(-3, 0, 0), // 3 years ago
+		PlantedAt:            time.Now().AddDate(-3, 0, 0), // 3 years ago
 		CarbonAbsorptionRate: 21.0,
-		Species:             "oak",
+		Species:              "oak",
 	}
 
 	result := CalculateEnvironmentalLoss(tree)
@@ -73,9 +73,9 @@ func TestCalculateEnvironmentalLoss_OakTree(t *testing.T) {
 
 func TestCalculateEnvironmentalLoss_TeakTree(t *testing.T) {
 	tree := models.Tree{
-		PlantedAt:           time.Now().AddDate(-2, 0, 0), // 2 years ago
+		PlantedAt:            time.Now().AddDate(-2, 0, 0), // 2 years ago
 		CarbonAbsorptionRate: 25.0,
-		Species:             "teak",
+		Species:              "teak",
 	}
 
 	result := CalculateEnvironmentalLoss(tree)
@@ -88,9 +88,9 @@ func TestCalculateEnvironmentalLoss_TeakTree(t *testing.T) {
 
 func TestCalculateEnvironmentalLoss_VeryNewTree(t *testing.T) {
 	tree := models.Tree{
-		PlantedAt:           time.Now().Add(-24 * time.Hour), // 1 day ago
+		PlantedAt:            time.Now().Add(-24 * time.Hour), // 1 day ago
 		CarbonAbsorptionRate: 30.0,
-		Species:             "bamboo",
+		Species:              "bamboo",
 	}
 
 	result := CalculateEnvironmentalLoss(tree)
@@ -103,9 +103,9 @@ func TestCalculateEnvironmentalLoss_VeryNewTree(t *testing.T) {
 
 func TestCalculateEnvironmentalLoss_BambooHighRate(t *testing.T) {
 	tree := models.Tree{
-		PlantedAt:           time.Now().AddDate(-1, 0, 0), // 1 year ago
+		PlantedAt:            time.Now().AddDate(-1, 0, 0), // 1 year ago
 		CarbonAbsorptionRate: 35.0,
-		Species:             "bamboo",
+		Species:              "bamboo",
 	}
 
 	result := CalculateEnvironmentalLoss(tree)
@@ -128,9 +128,9 @@ func TestCalculateEnvironmentalLoss_BambooHighRate(t *testing.T) {
 
 func TestCalculateEnvironmentalLoss_ZeroAbsorptionRate(t *testing.T) {
 	tree := models.Tree{
-		PlantedAt:           time.Now().AddDate(-1, 0, 0),
+		PlantedAt:            time.Now().AddDate(-1, 0, 0),
 		CarbonAbsorptionRate: 0.0,
-		Species:             "unknown",
+		Species:              "unknown",
 	}
 
 	result := CalculateEnvironmentalLoss(tree)
@@ -145,9 +145,9 @@ func TestCalculateEnvironmentalLoss_ZeroAbsorptionRate(t *testing.T) {
 
 func TestCalculateEnvironmentalLoss_OldOakProtected(t *testing.T) {
 	tree := models.Tree{
-		PlantedAt:           time.Now().AddDate(-10, 0, 0), // 10 years
+		PlantedAt:            time.Now().AddDate(-10, 0, 0), // 10 years
 		CarbonAbsorptionRate: 21.0,
-		Species:             "oak",
+		Species:              "oak",
 	}
 
 	result := CalculateEnvironmentalLoss(tree)

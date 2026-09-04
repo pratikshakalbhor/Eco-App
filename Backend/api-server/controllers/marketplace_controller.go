@@ -230,7 +230,7 @@ func GetMarketplaceStats(c *gin.Context) {
 	}
 
 	config.DB.Model(&models.MarketplaceListing{}).Where("status = ?", "ACTIVE").Count(&stats.ActiveListings)
-	
+
 	config.DB.Model(&models.MarketplaceListing{}).
 		Where("status IN ?", []string{"ACTIVE", "PARTIAL", "SOLD"}).
 		Select("COALESCE(AVG(price_per_credit), 0)").Scan(&stats.AvgPrice)

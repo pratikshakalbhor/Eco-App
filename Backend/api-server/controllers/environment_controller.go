@@ -12,18 +12,18 @@ import (
 // GetEnvironmentStats — GET /api/environment/stats
 func GetEnvironmentStats(c *gin.Context) {
 	var stats struct {
-		TotalTreesRegistered int64   `json:"total_trees_registered"`
-		TotalTreesVerified   int64   `json:"total_trees_verified"`
-		TotalTreesCut        int64   `json:"total_trees_cut"`
-		TotalReplanted       int64   `json:"total_replanted"`
-		ActiveNFTs           int64   `json:"active_nfts"`
-		TotalCO2Absorbed     float64 `json:"total_co2_absorbed"`
-		TotalCO2Lost         float64 `json:"total_co2_lost"`
-		NetCO2Balance        float64 `json:"net_co2_balance"`
+		TotalTreesRegistered   int64   `json:"total_trees_registered"`
+		TotalTreesVerified     int64   `json:"total_trees_verified"`
+		TotalTreesCut          int64   `json:"total_trees_cut"`
+		TotalReplanted         int64   `json:"total_replanted"`
+		ActiveNFTs             int64   `json:"active_nfts"`
+		TotalCO2Absorbed       float64 `json:"total_co2_absorbed"`
+		TotalCO2Lost           float64 `json:"total_co2_lost"`
+		NetCO2Balance          float64 `json:"net_co2_balance"`
 		CarbonCreditsGenerated float64 `json:"carbon_credits_generated"`
-		CarbonCreditsBurned  float64 `json:"carbon_credits_burned"`
-		CO2Offset            float64 `json:"co2_offset"`
-		ActiveDebts          int64   `json:"active_debts"`
+		CarbonCreditsBurned    float64 `json:"carbon_credits_burned"`
+		CO2Offset              float64 `json:"co2_offset"`
+		ActiveDebts            int64   `json:"active_debts"`
 	}
 
 	config.DB.Model(&models.Tree{}).Count(&stats.TotalTreesRegistered)

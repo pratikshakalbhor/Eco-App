@@ -24,7 +24,7 @@ func main() {
 
 	var tables []string
 	db.Raw("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'").Scan(&tables)
-	
+
 	if len(tables) == 0 {
 		fmt.Println("No tables found in public schema.")
 		return
@@ -36,7 +36,7 @@ func main() {
 			DataType   string
 		}
 		db.Raw("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ?", table).Scan(&columns)
-		
+
 		fmt.Printf("\n[Table: %s]\n", table)
 		for _, col := range columns {
 			fmt.Printf("  - %-20s | %s\n", col.ColumnName, col.DataType)

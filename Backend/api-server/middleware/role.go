@@ -1,9 +1,9 @@
 package middleware
 
 import (
+	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
-	"github.com/gin-gonic/gin"
 )
 
 // RoleMiddleware checks if the authenticated user has one of the required roles.
@@ -11,7 +11,7 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Extract role from context (set by AuthMiddleware)
 		role, exists := c.Get("role")
-		
+
 		if !exists {
 			log.Println("[RoleMiddleware] ERROR: Role not found in context")
 			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: user role missing"})

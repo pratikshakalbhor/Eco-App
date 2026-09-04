@@ -17,7 +17,7 @@ func main() {
 	}
 
 	config.InitDB()
-	
+
 	address := "0x22b94a9953db57760ef54f010ba304a79bfabed2"
 	var user models.User
 	if err := config.DB.Where("LOWER(wallet_address) = LOWER(?)", address).First(&user).Error; err != nil {

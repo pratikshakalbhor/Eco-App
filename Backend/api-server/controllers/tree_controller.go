@@ -70,28 +70,28 @@ func RegisterTree(c *gin.Context) {
 	}
 
 	tree := models.Tree{
-		ID:                uuid.New(),
-		TreeID:            treeID,
-		PlanterID:         userID,
-		Species:           input.Species,
-		Nickname:          input.Nickname,
-		OwnerWallet:       user.WalletAddress,
-		Latitude:          input.Latitude,
-		Longitude:         input.Longitude,
-		Location:          input.Location,
-		PhotoURL:          input.PhotoURL,
-		IPFSHash:          input.IPFSHash,
-		BlockchainTokenID: input.BlockchainTokenID,
-		TransactionHash:   input.TransactionHash,
-		Status:            "PENDING_VERIFICATION",
-		HealthStatus:      input.HealthStatus,
+		ID:                   uuid.New(),
+		TreeID:               treeID,
+		PlanterID:            userID,
+		Species:              input.Species,
+		Nickname:             input.Nickname,
+		OwnerWallet:          user.WalletAddress,
+		Latitude:             input.Latitude,
+		Longitude:            input.Longitude,
+		Location:             input.Location,
+		PhotoURL:             input.PhotoURL,
+		IPFSHash:             input.IPFSHash,
+		BlockchainTokenID:    input.BlockchainTokenID,
+		TransactionHash:      input.TransactionHash,
+		Status:               "PENDING_VERIFICATION",
+		HealthStatus:         input.HealthStatus,
 		CarbonAbsorptionRate: rate,
-		PlantedAt:         plantedAt,
-		Age:               input.Age,
-		IsReplacement:     input.IsReplacement,
-		ReplantedDebtID:   replantedDebtID,
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
+		PlantedAt:            plantedAt,
+		Age:                  input.Age,
+		IsReplacement:        input.IsReplacement,
+		ReplantedDebtID:      replantedDebtID,
+		CreatedAt:            time.Now(),
+		UpdatedAt:            time.Now(),
 	}
 
 	if err := config.DB.Create(&tree).Error; err != nil {
@@ -161,12 +161,12 @@ func VerifyTree(c *gin.Context) {
 	}
 
 	verification := models.Verification{
-		ID:          uuid.New(),
-		TreeID:      tree.ID,
-		VerifierID:  verifierID,
-		Status:      status,
-		Notes:       input.Notes,
-		CreatedAt:   time.Now(),
+		ID:         uuid.New(),
+		TreeID:     tree.ID,
+		VerifierID: verifierID,
+		Status:     status,
+		Notes:      input.Notes,
+		CreatedAt:  time.Now(),
 	}
 
 	if err := tx.Create(&verification).Error; err != nil {
@@ -184,7 +184,7 @@ func VerifyTree(c *gin.Context) {
 			ID:        uuid.New(),
 			UserID:    tree.PlanterID,
 			TreeID:    tree.ID,
-			Amount:    1.0, 
+			Amount:    1.0,
 			Type:      "verification_reward",
 			CreatedAt: time.Now(),
 		}
@@ -218,32 +218,32 @@ func VerifyTree(c *gin.Context) {
 					updates["status"] = "CLEARED"
 					now := time.Now()
 					updates["cleared_at"] = &now
-					
+
 					// Unfreeze credits
 					tx.Model(&models.CarbonCredit{}).
 						Where("tree_id = (SELECT id FROM trees WHERE tree_id = ?)", debt.OriginalTreeID).
 						Update("tradeable", true)
-						
+
 					// Log Debt Clear
 					LogActivity("DEBT_CLEARED", debt.OriginalTreeID, &debt.ID, debt.OwnerWallet, "Replantation debt cleared automatically after tree verification")
 
 					// Generate Certificate
 					certID := fmt.Sprintf("CERT-%d-%s", time.Now().Unix(), uuid.New().String()[:4])
-					
+
 					var loss models.EnvironmentalLoss
 					tx.Where("tree_id = ?", debt.OriginalTreeID).First(&loss)
 
 					certificate := models.RestorationCertificate{
-						ID:             uuid.New(),
-						CertificateID:  certID,
-						DebtID:         debt.ID,
-						IssuedTo:       debt.OwnerWallet,
-						OriginalTreeID: debt.OriginalTreeID,
-						CO2RestoredKg:  loss.CO2LostKg,
+						ID:              uuid.New(),
+						CertificateID:   certID,
+						DebtID:          debt.ID,
+						IssuedTo:        debt.OwnerWallet,
+						OriginalTreeID:  debt.OriginalTreeID,
+						CO2RestoredKg:   loss.CO2LostKg,
 						CreditsRestored: loss.CreditsLost,
-						IssuedAt:       time.Now(),
+						IssuedAt:        time.Now(),
 					}
-					
+
 					if err := tx.Create(&certificate).Error; err == nil {
 						updates["certificate_id"] = certID
 					}

@@ -32,14 +32,14 @@ func SetupRoutes(r *gin.Engine) {
 		// ── Public Routes ────────────────────────────────────────────
 		// IMPORTANT: Static paths MUST come before :id wildcard in Gin
 		api.GET("/trees", controllers.GetAllTrees)
-		api.GET("/trees/all", controllers.GetTreeAllPublic)        // Map page — public
-		api.GET("/trees/stats", controllers.GetTreeStats)           // must be before /trees/:id
+		api.GET("/trees/all", controllers.GetTreeAllPublic) // Map page — public
+		api.GET("/trees/stats", controllers.GetTreeStats)   // must be before /trees/:id
 		api.GET("/environment/stats", controllers.GetEnvironmentStats)
 		api.GET("/environment/monthly-stats", controllers.GetMonthlyStats)
 		api.GET("/environment/species-stats", controllers.GetSpeciesStats)
 		api.GET("/activity/recent", controllers.GetRecentActivity)
-		api.GET("/trees/:id", controllers.GetTreeByID)              // wildcard last
-		api.GET("/trees/:id/history", controllers.GetTreeHistory)   // lifecycle timeline
+		api.GET("/trees/:id", controllers.GetTreeByID)            // wildcard last
+		api.GET("/trees/:id/history", controllers.GetTreeHistory) // lifecycle timeline
 
 		// ── Protected Context ───────────────────────────────────────
 		protected := api.Group("/")

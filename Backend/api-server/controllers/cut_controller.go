@@ -122,7 +122,7 @@ func GetCutReports(c *gin.Context) {
 	statusFilter := c.Query("status") // PENDING, CONFIRMED, REJECTED
 
 	var reports []models.CutReport
-	query := config.DB.Preload("Tree")
+	query := config.DB
 
 	if statusFilter != "" {
 		query = query.Where("status = ?", statusFilter)
@@ -133,7 +133,37 @@ func GetCutReports(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, reports)
+	treeIDSet := make(map[string]bool)
+	for _, r := range reports {
+		treeIDSet[r.TreeID] = true
+	}
+	treeIDs := make([]string, 0, len(treeIDSet))
+	for id := range treeIDSet {
+		treeIDs = append(treeIDs, id)
+	}
+
+	treeMap := make(map[string]models.Tree)
+	if len(treeIDs) > 0 {
+		var trees []models.Tree
+		config.DB.Where("tree_id IN ?", treeIDs).Find(&trees)
+		for _, t := range trees {
+			treeMap[t.TreeID] = t
+		}
+	}
+
+	type CutReportResponse struct {
+		models.CutReport
+		Tree *models.Tree `json:"tree"`
+	}
+	results := make([]CutReportResponse, len(reports))
+	for i, r := range reports {
+		results[i].CutReport = r
+		if t, ok := treeMap[r.TreeID]; ok {
+			results[i].Tree = &t
+		}
+	}
+
+	c.JSON(http.StatusOK, results)
 }
 
 // ConfirmCut — POST /api/trees/:id/cut/confirm
@@ -252,9 +282,9 @@ func ConfirmCut(c *gin.Context) {
 		treeID, co2Lost, replacementNeeded, debt.ID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":             fmt.Sprintf("Tree %s cut confirmed. Replantation debt created.", treeID),
-		"environmental_loss":  loss,
-		"replantation_debt":   debt,
+		"message":            fmt.Sprintf("Tree %s cut confirmed. Replantation debt created.", treeID),
+		"environmental_loss": loss,
+		"replantation_debt":  debt,
 	})
 }
 

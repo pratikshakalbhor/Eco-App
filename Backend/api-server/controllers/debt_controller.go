@@ -42,7 +42,7 @@ func GetMyDebts(c *gin.Context) {
 		config.DB.Where("tree_id = ?", debt.OriginalTreeID).First(&loss)
 		enriched = append(enriched, EnrichedDebt{
 			ReplantationDebt: debt,
-			Loss:            &loss,
+			Loss:             &loss,
 		})
 	}
 
@@ -200,21 +200,21 @@ func LinkTreeToDebt(c *gin.Context) {
 	if newStatus == "CLEARED" {
 		// Generate Certificate
 		certID := fmt.Sprintf("CERT-%d-%s", time.Now().Unix(), uuid.New().String()[:4])
-		
+
 		var loss models.EnvironmentalLoss
 		config.DB.Where("tree_id = ?", debt.OriginalTreeID).First(&loss)
 
 		certificate := models.RestorationCertificate{
-			ID:             uuid.New(),
-			CertificateID:  certID,
-			DebtID:         debt.ID,
-			IssuedTo:       debt.OwnerWallet,
-			OriginalTreeID: debt.OriginalTreeID,
-			CO2RestoredKg:  loss.CO2LostKg,
+			ID:              uuid.New(),
+			CertificateID:   certID,
+			DebtID:          debt.ID,
+			IssuedTo:        debt.OwnerWallet,
+			OriginalTreeID:  debt.OriginalTreeID,
+			CO2RestoredKg:   loss.CO2LostKg,
 			CreditsRestored: loss.CreditsLost,
-			IssuedAt:       time.Now(),
+			IssuedAt:        time.Now(),
 		}
-		
+
 		if err := tx.Create(&certificate).Error; err == nil {
 			tx.Model(&debt).Update("certificate_id", certID)
 			LogActivity("DEBT_CLEARED", debt.OriginalTreeID, &debt.ID, debt.OwnerWallet, "Environmental debt fully cleared and restoration certificate issued")
@@ -279,11 +279,11 @@ func GetCertificateData(c *gin.Context) {
 	config.DB.Where("tree_id = ?", debt.OriginalTreeID).First(&origTree)
 
 	c.JSON(http.StatusOK, gin.H{
-		"certificate_id":  cert.CertificateID,
-		"issued_to":       cert.IssuedTo,
+		"certificate_id": cert.CertificateID,
+		"issued_to":      cert.IssuedTo,
 		"original_tree": gin.H{
-			"id":      origTree.TreeID,
-			"species": origTree.Species,
+			"id":       origTree.TreeID,
+			"species":  origTree.Species,
 			"location": origTree.Location,
 		},
 		"cut_date":          debt.CreatedAt, // Approximate

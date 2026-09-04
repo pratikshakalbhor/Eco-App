@@ -1,16 +1,16 @@
 package config
 
 import (
-	"fmt"
-	"log"
-	"os"
-	"github.com/joho/godotenv"
 	"ecochain-backend/models"
-	"gorm.io/driver/postgres"
+	"fmt"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"log"
+	"os"
 )
 
 var DB *gorm.DB
@@ -71,6 +71,13 @@ func InitDB() {
 
 	// Auto-Migrate Models individually to ensure one failure doesn't block others
 	fmt.Println("Running Auto-Migration...")
+
+	// Drop incorrect FK constraint from previous buggy model definitions.
+	// The bidirectional Tree<->CutReport association caused GORM to create
+	// fk_cut_reports_tree on trees.tree_id → cut_reports.tree_id, which is
+	// backwards (it forces every tree to have a cut report before insert).
+	database.Exec(`ALTER TABLE "trees" DROP CONSTRAINT IF EXISTS "fk_cut_reports_tree"`)
+
 	migrateModels := []interface{}{
 		&models.User{},
 		&models.Tree{},

@@ -24,8 +24,8 @@ type User struct {
 }
 
 type Tree struct {
-	ID    uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	TreeID string   `gorm:"unique;default:''" json:"tree_id"`
+	ID     uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	TreeID string    `gorm:"unique;default:''" json:"tree_id"`
 
 	PlanterID uuid.UUID `json:"planter_id"`
 	Planter   User      `gorm:"foreignKey:PlanterID" json:"planter"`
@@ -83,7 +83,7 @@ type Verification struct {
 	ID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	TreeID     uuid.UUID `json:"tree_id"`
 	VerifierID uuid.UUID `json:"verifier_id"`
-	Status     string    `json:"status"` // VERIFIED, REJECTED
+	Status     string    `json:"status"`                         // VERIFIED, REJECTED
 	Type       string    `gorm:"default:'planting'" json:"type"` // planting, cutting
 	Notes      string    `json:"notes"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -91,14 +91,13 @@ type Verification struct {
 
 // CutReport — submitted by tree owner when a verified tree is physically cut
 type CutReport struct {
-	ID               uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	TreeID           string     `gorm:"not null;unique" json:"tree_id"`
-	Tree             Tree       `gorm:"foreignKey:TreeID;references:TreeID" json:"tree"`
-	OwnerWallet      string     `gorm:"not null" json:"owner_wallet"`
-	Reason           string     `gorm:"not null" json:"reason"` // Storm / Construction / Disease / Other
-	CutDate          time.Time  `json:"cut_date"`
-	Description      string     `json:"description"`
-	EvidenceImageURL string     `json:"evidence_image_url"`
+	ID               uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	TreeID           string    `gorm:"not null;unique" json:"tree_id"`
+	OwnerWallet      string    `gorm:"not null" json:"owner_wallet"`
+	Reason           string    `gorm:"not null" json:"reason"` // Storm / Construction / Disease / Other
+	CutDate          time.Time `json:"cut_date"`
+	Description      string    `json:"description"`
+	EvidenceImageURL string    `json:"evidence_image_url"`
 	// Status: PENDING | CONFIRMED | REJECTED
 	Status      string     `gorm:"default:'PENDING'" json:"status"`
 	ConfirmedBy string     `json:"confirmed_by"`
@@ -154,24 +153,24 @@ type CompensationRecord struct {
 }
 
 type RestorationCertificate struct {
-	ID             uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	CertificateID  string    `gorm:"unique;not null" json:"certificate_id"` // "CERT-2024-001"
-	DebtID         uuid.UUID `gorm:"not null" json:"debt_id"`
-	IssuedTo       string    `gorm:"not null" json:"issued_to"` // owner wallet
-	OriginalTreeID string    `gorm:"not null" json:"original_tree_id"`
-	CO2RestoredKg  float64   `json:"co2_restored_kg"`
+	ID              uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	CertificateID   string    `gorm:"unique;not null" json:"certificate_id"` // "CERT-2024-001"
+	DebtID          uuid.UUID `gorm:"not null" json:"debt_id"`
+	IssuedTo        string    `gorm:"not null" json:"issued_to"` // owner wallet
+	OriginalTreeID  string    `gorm:"not null" json:"original_tree_id"`
+	CO2RestoredKg   float64   `json:"co2_restored_kg"`
 	CreditsRestored float64   `json:"credits_restored"`
-	IssuedAt       time.Time `json:"issued_at"`
+	IssuedAt        time.Time `json:"issued_at"`
 }
 
 type ActivityLog struct {
-	ID          uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	EventType   string    `json:"event_type"` // TREE_PLANTED/TREE_VERIFIED/TREE_CUT/DEBT_CLEARED/CERT_ISSUED
-	TreeID      string    `json:"tree_id"`
+	ID          uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	EventType   string     `json:"event_type"` // TREE_PLANTED/TREE_VERIFIED/TREE_CUT/DEBT_CLEARED/CERT_ISSUED
+	TreeID      string     `json:"tree_id"`
 	DebtID      *uuid.UUID `gorm:"type:uuid" json:"debt_id"`
-	Actor       string    `json:"actor"` // wallet address
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
+	Actor       string     `json:"actor"` // wallet address
+	Description string     `json:"description"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
 type MarketplaceListing struct {
@@ -183,7 +182,7 @@ type MarketplaceListing struct {
 	CreditsTotal   float64   `gorm:"type:decimal(10,6);not null" json:"credits_total"`
 	CreditsSold    float64   `gorm:"type:decimal(10,6);default:0" json:"credits_sold"`
 	PricePerCredit float64   `gorm:"type:decimal(10,2);not null" json:"price_per_credit"` // in INR
-	Status         string    `gorm:"default:'ACTIVE'" json:"status"`                     // ACTIVE/PARTIAL/SOLD/CANCELLED
+	Status         string    `gorm:"default:'ACTIVE'" json:"status"`                      // ACTIVE/PARTIAL/SOLD/CANCELLED
 	ExpiresAt      time.Time `json:"expires_at"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
