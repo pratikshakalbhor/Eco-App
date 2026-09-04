@@ -17,6 +17,7 @@ jobs:
     env:
       VERCEL_ORG_ID:      ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID:  ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN:       ${{ secrets.VERCEL_TOKEN }}
     permissions:
       contents: read
     steps:
@@ -27,18 +28,18 @@ jobs:
         run: npm install -g vercel
 
       - name: Pull Vercel project settings
-        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+        run: vercel pull --yes --environment=production --cwd TreeClient --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
       - name: Build frontend (production)
-        run: vercel build --prod --yes --cwd TreeClient --token "$VERCEL_TOKEN"
+        run: vercel build --prod --yes --cwd TreeClient --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VITE_API_URL: ${{ secrets.VITE_API_URL_PRODUCTION }}
 
       - name: Deploy frontend to Vercel (production)
-        run: vercel deploy --prod --prebuilt --yes --cwd TreeClient --token "$VERCEL_TOKEN"
+        run: vercel deploy --prod --prebuilt --yes --cwd TreeClient --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
