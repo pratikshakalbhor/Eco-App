@@ -1,0 +1,74 @@
+# --- Frontend (TreeClient) ---
+TreeClient/node_modules/
+TreeClient/dist/
+TreeClient/dist-ssr/
+TreeClient/build/
+.env
+.env.*
+!.env.example
+TreeClient/.env
+TreeClient/.env.*
+!TreeClient/.env.example
+TreeClient/coverage/
+
+# --- Backend (Backend) ---
+Backend/node_modules/
+Backend/vendor/
+Backend/artifacts/
+Backend/cache/
+Backend/typechain/
+Backend/typechain-types/
+Backend/api-server/api-server
+Backend/api-server/server
+Backend/api-server/server.exe
+Backend/.env
+Backend/.env.*
+!Backend/.env.example
+Backend/api-server/.env
+Backend/api-server/.env.*
+!Backend/api-server/.env.example
+Backend/*.db
+
+# --- Blockchain (blockchain) ---
+blockchain/node_modules/
+blockchain/artifacts/
+blockchain/cache/
+blockchain/typechain/
+blockchain/typechain-types/
+blockchain/deployments/
+blockchain/.env
+blockchain/.env.*
+!blockchain/.env.example
+
+# --- Go builds / local databases / coverage / temp / logs ---
+*.exe
+*.test
+*.out
+*.db
+*.sqlite
+*.sqlite3
+coverage/
+*.cover
+*.log
+.DS_Store
+
+# --- General / OS / Editors ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Root level ---
+.env
+node_modules/
+dist/
+build/
+bin/
+*.db
+
