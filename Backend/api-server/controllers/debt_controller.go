@@ -5,6 +5,7 @@ import (
 	"ecochain-backend/models"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -99,10 +100,23 @@ func LinkTreeToDebt(c *gin.Context) {
 		return
 	}
 
+	walletAddressRaw, exists := c.Get("walletAddress")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Wallet address not found in context"})
+		return
+	}
+	walletAddress := fmt.Sprintf("%v", walletAddressRaw)
+
 	// Validate debt
 	var debt models.ReplantationDebt
 	if err := config.DB.First(&debt, "id = ?", debtID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Debt not found"})
+		return
+	}
+
+	// Only the owner of the debt may link replacement trees to it.
+	if !strings.EqualFold(debt.OwnerWallet, walletAddress) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to modify this debt"})
 		return
 	}
 
@@ -115,6 +129,12 @@ func LinkTreeToDebt(c *gin.Context) {
 	var tree models.Tree
 	if err := config.DB.First(&tree, "tree_id = ?", input.TreeID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tree not found"})
+		return
+	}
+
+	// The tree must belong to the requesting user, i.e. the same owner as the debt.
+	if !strings.EqualFold(tree.OwnerWallet, walletAddress) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to link this tree"})
 		return
 	}
 
@@ -236,19 +256,54 @@ func LinkTreeToDebt(c *gin.Context) {
 	})
 }
 
-// GetAllDebts — GET /api/debt/all (admin only)
+// GetAllDebts — GET /api/debt/all
+// Public transparency view backing the Environment "Trees Needing Replantation"
+// panel. Returns restoration progress only — NO owner wallets, NO original or
+// replacement tree identifiers. (The previous comment claimed "admin only", but
+// the non-admin Environment page is the sole consumer, so this is a deliberately
+// non-identifying public aggregate rather than an admin-only listing.)
 func GetAllDebts(c *gin.Context) {
 	debts := make([]models.ReplantationDebt, 0)
 
 	if err := config.DB.
-		Preload("ReplacementTrees").
 		Order("created_at desc").
 		Find(&debts).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch debts"})
 		return
 	}
 
-	c.JSON(http.StatusOK, debts)
+	// Non-identifying projection. OwnerWallet / OriginalTreeID are kept as
+	// empty strings so existing consumers (which read those keys) keep working
+	// without crashing, while no private data is transmitted.
+	type PublicDebt struct {
+		ID            uuid.UUID  `json:"id"`
+		Status        string     `json:"status"`
+		TreesNeeded   int        `json:"trees_needed"`
+		TreesPlanted  int        `json:"trees_planted"`
+		TreesVerified int        `json:"trees_verified"`
+		CreatedAt     time.Time  `json:"created_at"`
+		ClearedAt     *time.Time `json:"cleared_at"`
+		// Redacted placeholders for backward compatibility — always empty.
+		OwnerWallet    string `json:"owner_wallet"`
+		OriginalTreeID string `json:"original_tree_id"`
+	}
+
+	public := make([]PublicDebt, 0, len(debts))
+	for _, d := range debts {
+		public = append(public, PublicDebt{
+			ID:             d.ID,
+			Status:         d.Status,
+			TreesNeeded:    d.TreesNeeded,
+			TreesPlanted:   d.TreesPlanted,
+			TreesVerified:  d.TreesVerified,
+			CreatedAt:      d.CreatedAt,
+			ClearedAt:      d.ClearedAt,
+			OwnerWallet:    "",
+			OriginalTreeID: "",
+		})
+	}
+
+	c.JSON(http.StatusOK, public)
 }
 
 // GetCertificateData — GET /api/debt/:id/certificate

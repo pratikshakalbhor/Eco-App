@@ -35,7 +35,7 @@ export default function EcoChainDashboard() {
   const { data: trees = [], isLoading: isTreesLoading } = useQuery({
     queryKey: ['dashboard-trees'],
     queryFn: async () => {
-      const { data } = await axios.get(`${API_URL}/api/trees`);
+      const { data } = await axios.get(`${API_URL}/api/trees/my`);
       return data;
     },
   });
