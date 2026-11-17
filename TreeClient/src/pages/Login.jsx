@@ -49,7 +49,7 @@ export default function Login() {
             <TreePine className="w-10 h-10 text-emerald-400" />
           </div>
           <h1 className="text-4xl font-bold tracking-tight mb-3">EcoChain</h1>
-          <p className="text-gray-400 text-lg">Decentralized Tree Plantation & Carbon Credits</p>
+          <p className="text-gray-400 text-lg">Tree Plantation & Carbon Credit Accountability</p>
         </div>
 
         <div className="space-y-4">
