@@ -37,9 +37,17 @@ type Tree struct {
 	Longitude   float64 `json:"longitude"`
 	Location    string  `gorm:"column:location" json:"location"`
 
-	PhotoURL          string `gorm:"column:image_url" json:"image_url"`
-	IPFSHash          string `json:"ipfs_hash"`
-	BlockchainTokenID string `json:"blockchain_token_id"`
+	PhotoURL string `gorm:"column:image_url" json:"image_url"`
+	// The database column is ip_fs_hash (GORM's snake_case conversion of the
+	// field name) while the API exposes it as ipfs_hash. The column tag keeps
+	// that mapping explicit so a future field rename cannot silently break the
+	// public tree listing query.
+	IPFSHash string `gorm:"column:ip_fs_hash" json:"ipfs_hash"`
+	// BlockchainTokenID is the on-chain token id of the tree NFT. It must be
+	// unique: two trees claiming the same NFT is exactly the double
+	// counting the platform exists to prevent. The index is partial so trees
+	// that have not been minted yet (empty id) do not collide.
+	BlockchainTokenID string `gorm:"uniqueIndex:uni_trees_blockchain_token_id,where:blockchain_token_id IS NOT NULL AND blockchain_token_id <> ''" json:"blockchain_token_id"`
 	TransactionHash   string `json:"transaction_hash"`
 	ContractAddress   string `json:"contract_address"`
 
@@ -69,14 +77,37 @@ type Tree struct {
 }
 
 type CarbonCredit struct {
-	ID              uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	UserID          uuid.UUID `json:"user_id"`
-	TreeID          uuid.UUID `json:"tree_id"`
-	Amount          float64   `json:"amount"` // Positive for earned, negative for lost
-	Tradeable       bool      `gorm:"default:true" json:"tradeable"`
-	TransactionHash string    `json:"transaction_hash"`
-	Type            string    `json:"type"` // earned, penalty, compensation
-	CreatedAt       time.Time `json:"created_at"`
+	ID uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	// TreeID and Type together form the uniqueness key. BOTH fields must carry
+	// the same index name: a uniqueIndex tag on only one field creates a
+	// single-column index, which would allow just one credit of each type in
+	// the entire table.
+	TreeID uuid.UUID `gorm:"uniqueIndex:uni_carbon_credits_tree_id_type,where:type <> 'burned'" json:"tree_id"`
+	UserID uuid.UUID `json:"user_id"`
+	Amount float64   `json:"amount"` // Positive for earned, negative for lost
+	// Tradeable is false for credits frozen by an unresolved replantation
+	// debt and for burn rows.
+	//
+	// There is deliberately no gorm default here: with `default:true`, GORM
+	// omits the zero value on INSERT and the database writes true, so a credit
+	// explicitly created as frozen silently became spendable. Every issuance
+	// path sets Tradeable explicitly instead.
+	Tradeable bool `json:"tradeable"`
+	// TransactionHash identifies the on-chain transaction that produced this
+	// entry. The unique index makes a burn idempotent: replaying the same
+	// transaction hash is rejected instead of burning the credits twice.
+	// The index is partial so entries without a hash do not collide.
+	TransactionHash string `gorm:"uniqueIndex:uni_carbon_credits_transaction_hash,where:transaction_hash IS NOT NULL AND transaction_hash <> ''" json:"transaction_hash"`
+	// Type is one of: verification_reward, minted, burned, penalty,
+	// compensation.
+	//
+	// The composite unique index on (tree_id, type) is what stops a tree from
+	// being credited twice — the integrity invariant the platform is built on.
+	// Burns are excluded because they are not attributed to a single tree
+	// (they carry the zero tree id) and a user may legitimately burn more than
+	// once.
+	Type      string    `gorm:"uniqueIndex:uni_carbon_credits_tree_id_type" json:"type"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Verification struct {
@@ -128,18 +159,21 @@ type ReplantationDebt struct {
 	// Status: PENDING | IN_PROGRESS | CLEARED
 	Status        string     `gorm:"default:'PENDING'" json:"status"`
 	CertificateID string     `json:"certificate_id"`
-	ClearedAt     *time.Time `json:"cleared_at"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ClearedAt       *time.Time `json:"cleared_at"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 
 	ReplacementTrees []ReplacementTree `gorm:"foreignKey:DebtID" json:"replacement_trees"`
 }
 
 // ReplacementTree — links a newly planted tree to a replantation debt
 type ReplacementTree struct {
-	ID       uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	DebtID   uuid.UUID `gorm:"not null" json:"debt_id"`
-	TreeID   string    `gorm:"not null" json:"tree_id"`
+	ID     uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	DebtID uuid.UUID `gorm:"not null" json:"debt_id"`
+	// TreeID must be unique across the whole table: a single tree may
+	// satisfy at most one replantation debt, otherwise a debtor could clear
+	// several debts with one replacement tree.
+	TreeID   string    `gorm:"not null;uniqueIndex:uni_replacement_trees_tree_id" json:"tree_id"`
 	LinkedAt time.Time `json:"linked_at"`
 }
 

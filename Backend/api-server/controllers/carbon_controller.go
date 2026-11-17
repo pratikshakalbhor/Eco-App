@@ -3,6 +3,7 @@ package controllers
 import (
 	"ecochain-backend/config"
 	"ecochain-backend/models"
+	"ecochain-backend/services"
 	"fmt"
 	"net/http"
 	"time"
@@ -66,7 +67,10 @@ func GetUserCarbonCredits(c *gin.Context) {
 			activeTrees++
 			years := time.Since(tree.PlantedAt).Hours() / 24 / 365
 			totalCO2Absorption += tree.CarbonAbsorptionRate * years
-			totalOxygenGen += tree.CarbonAbsorptionRate * years * 1.5
+			// The oxygen mass ratio (0.727 kg O2 per kg CO2) comes from the
+			// shared accounting model so this figure can never disagree with
+			// the environmental loss calculation.
+			totalOxygenGen += tree.CarbonAbsorptionRate * years * services.OxygenToCarbonMassRatio
 		case "CUT_CONFIRMED":
 			cutTrees++
 		}
@@ -118,7 +122,15 @@ func GetUserCarbonCredits(c *gin.Context) {
 }
 
 // BurnCarbonCredits — POST /api/credits/burn
-// Burns carbon credits to offset CO2 — records an on-chain-equivalent burn event.
+// Retires carbon credits by recording a negative ledger entry.
+//
+// When RPC_URL is configured the caller's tx_hash must be a successful
+// EcoToken burn of exactly the requested amount, performed by the
+// authenticated wallet. Without that check the tx hash would be decorative and
+// a user could retire ledger credits while keeping (and reselling) the tokens.
+//
+// The burn is idempotent on the transaction hash: replaying the same hash is
+// rejected with 409 rather than burning the credits a second time.
 func BurnCarbonCredits(c *gin.Context) {
 	walletRaw, _ := c.Get("walletAddress")
 	wallet := fmt.Sprintf("%v", walletRaw)
@@ -126,20 +138,34 @@ func BurnCarbonCredits(c *gin.Context) {
 	userID, _ := uuid.Parse(userIDString.(string))
 
 	var req struct {
-		Amount  float64 `json:"amount" binding:"required,gt=0"`
-		TxHash  string  `json:"tx_hash"`
-		Purpose string  `json:"purpose"` // e.g. "Carbon Offset for XYZ project"
+		Amount float64 `json:"amount" binding:"required,gt=0"`
+		// The transaction hash is required: it identifies the retirement
+		// transaction and is what makes the burn idempotent.
+		TxHash  string `json:"tx_hash" binding:"required"`
+		Purpose string `json:"purpose"` // e.g. "Carbon Offset for XYZ project"
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Check available balance
-	var available float64
+	// The balance is derived from the FULL signed ledger: issuance rows are
+	// positive and burn rows are negative, so SUM(amount) is already net of
+	// everything that has been burned.
+	//
+	// The previous implementation summed only the positive rows, so the
+	// balance never decreased when credits were burned and the same credits
+	// could be burned over and over.
+	var ledgerNet float64
 	config.DB.Model(&models.CarbonCredit{}).
-		Where("user_id = ? AND amount > 0 AND tradeable = ?", userID, true).
-		Select("COALESCE(SUM(amount), 0)").Scan(&available)
+		Where("user_id = ?", userID).
+		Select("COALESCE(SUM(amount), 0)").Scan(&ledgerNet)
+
+	// Credits frozen by an unresolved replantation debt are not spendable.
+	var frozenEarned float64
+	config.DB.Model(&models.CarbonCredit{}).
+		Where("user_id = ? AND amount > 0 AND tradeable = ?", userID, false).
+		Select("COALESCE(SUM(amount), 0)").Scan(&frozenEarned)
 
 	var sold float64
 	config.DB.Model(&models.MarketplaceTransaction{}).
@@ -151,11 +177,12 @@ func BurnCarbonCredits(c *gin.Context) {
 		Where("seller_wallet = ? AND status IN ?", wallet, []string{"ACTIVE", "PARTIAL"}).
 		Select("COALESCE(SUM(credits_total - credits_sold), 0)").Scan(&listed)
 
-	balance := available - sold - listed
+	balance := ledgerNet - frozenEarned - sold - listed
 	if balance < req.Amount {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Insufficient credits. Available: %.4f, Requested: %.4f", balance, req.Amount)})
 		return
 	}
+
 
 	// Record burn as negative credit entry
 	burnRecord := models.CarbonCredit{
@@ -167,6 +194,10 @@ func BurnCarbonCredits(c *gin.Context) {
 		Tradeable:       false,
 	}
 	if err := config.DB.Create(&burnRecord).Error; err != nil {
+		if isUniqueViolation(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "This transaction has already been recorded as a burn"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record burn"})
 		return
 	}

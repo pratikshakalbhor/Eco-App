@@ -97,6 +97,14 @@ func RegisterTree(c *gin.Context) {
 	}
 
 	if err := config.DB.Create(&tree).Error; err != nil {
+		if isUniqueViolation(err) {
+			// Two trees claiming the same on-chain token id is exactly the
+			// double counting the platform exists to prevent.
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "This on-chain token id is already registered to another tree",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register tree"})
 		return
 	}

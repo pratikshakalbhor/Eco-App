@@ -34,7 +34,7 @@ func GetTreeHistory(c *gin.Context) {
 
 	events = append(events, TimelineEvent{
 		EventType:   "TREE_REGISTERED",
-		Description: fmt.Sprintf("%s tree registered and NFT minted", tree.Species),
+		Description: fmt.Sprintf("%s tree registered", tree.Species),
 		Actor:       tree.OwnerWallet,
 		TxHash:      tree.TransactionHash,
 		At:          tree.CreatedAt.Format("2006-01-02T15:04:05Z"),

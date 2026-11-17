@@ -4,9 +4,11 @@ import (
 	"ecochain-backend/config"
 	"ecochain-backend/models"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // GetCreditBalance — GET /api/credits/balance
@@ -76,8 +78,19 @@ func GetCreditHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, history)
 }
 
-// Helper to update credit ledger
+// RecordCreditEvent appends an entry to the credit ledger.
 func RecordCreditEvent(wallet, treeID, eventType string, amount, balanceAfter float64, refID string) {
+	RecordCreditEventTx(config.DB, wallet, treeID, eventType, amount, balanceAfter, refID)
+}
+
+// RecordCreditEventTx appends an entry to the credit ledger using the
+// supplied transaction.
+//
+// Handlers that record a ledger event while holding a write transaction MUST
+// use this instead of RecordCreditEvent: writing through the global
+// connection escapes the transaction, so the ledger entry would survive a
+// rollback of the balance change it describes.
+func RecordCreditEventTx(tx *gorm.DB, wallet, treeID, eventType string, amount, balanceAfter float64, refID string) {
 	event := models.CreditLedger{
 		Wallet:       wallet,
 		TreeID:       treeID,
@@ -86,5 +99,7 @@ func RecordCreditEvent(wallet, treeID, eventType string, amount, balanceAfter fl
 		BalanceAfter: balanceAfter,
 		ReferenceID:  refID,
 	}
-	config.DB.Create(&event)
+	if err := tx.Create(&event).Error; err != nil {
+		log.Printf("Error recording credit event: %v", err)
+	}
 }

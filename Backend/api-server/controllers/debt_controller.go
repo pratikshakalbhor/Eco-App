@@ -214,8 +214,9 @@ func LinkTreeToDebt(c *gin.Context) {
 		return
 	}
 
-	// Logging
-	LogActivity("TREE_LINKED", tree.TreeID, &debt.ID, tree.OwnerWallet, fmt.Sprintf("Linked tree %s as replacement for debt", tree.TreeID))
+	// Logging — written through the open transaction so the audit trail is
+	// committed atomically with the change it describes.
+	LogActivityTx(tx, "TREE_LINKED", tree.TreeID, &debt.ID, tree.OwnerWallet, fmt.Sprintf("Linked tree %s as replacement for debt", tree.TreeID))
 
 	if newStatus == "CLEARED" {
 		// Generate Certificate
@@ -237,7 +238,7 @@ func LinkTreeToDebt(c *gin.Context) {
 
 		if err := tx.Create(&certificate).Error; err == nil {
 			tx.Model(&debt).Update("certificate_id", certID)
-			LogActivity("DEBT_CLEARED", debt.OriginalTreeID, &debt.ID, debt.OwnerWallet, "Environmental debt fully cleared and restoration certificate issued")
+			LogActivityTx(tx, "DEBT_CLEARED", debt.OriginalTreeID, &debt.ID, debt.OwnerWallet, "Environmental debt fully cleared and restoration certificate issued")
 		}
 	}
 

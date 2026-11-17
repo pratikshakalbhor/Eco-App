@@ -14,8 +14,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// MaxCutReportAccuracyMeters is the maximum acceptable horizontal accuracy
+// of the GPS reading that accompanies a cut report.
+//
+// navigator.geolocation reports the radius of uncertainty of its fix. A
+// reading with a 500 m accuracy says nothing about whether the reporter was
+// standing next to the tree, so the 100 m geofence check would be
+// meaningless. Reports that cannot prove a precise position are rejected.
+const MaxCutReportAccuracyMeters = 25.0
+
 // ReportCut — POST /api/trees/:id/report-cut
-// User reports that one of their VERIFIED trees has been cut.
+// The tree owner reports that one of their VERIFIED trees has been cut.
 func ReportCut(c *gin.Context) {
 	treeID := c.Param("id")
 
@@ -26,6 +35,9 @@ func ReportCut(c *gin.Context) {
 		EvidenceImageURL string  `json:"evidence_image_url"`
 		Latitude         float64 `json:"latitude" binding:"required"`
 		Longitude        float64 `json:"longitude" binding:"required"`
+		// Accuracy is the horizontal accuracy of the GPS fix in metres, as
+		// reported by navigator.geolocation (position.coords.accuracy).
+		Accuracy float64 `json:"accuracy"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -33,9 +45,34 @@ func ReportCut(c *gin.Context) {
 		return
 	}
 
-	// Validate tree exists and is VERIFIED
+	// The geofence check below is only meaningful if the device could fix its
+	// position precisely. A missing or imprecise reading is rejected.
+	if input.Accuracy <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "A GPS reading with an accuracy of at most 25 metres is required to report a cut. Please allow location access and try again.",
+		})
+		return
+	}
+	if input.Accuracy > MaxCutReportAccuracyMeters {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Your GPS reading is only accurate to %.0f m. A reading of %.0f m or better is required to report a cut.",
+				input.Accuracy, MaxCutReportAccuracyMeters),
+		})
+		return
+	}
+
+	// Only the owner of the tree may report it as cut. Without this check any
+	// authenticated user could freeze an arbitrary tree's credits and cancel
+	// its marketplace listings.
+	walletRaw, exists := c.Get("walletAddress")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Wallet address not found in context"})
+		return
+	}
+	ownerWallet := fmt.Sprintf("%v", walletRaw)
+
 	var tree models.Tree
-	if err := config.DB.First(&tree, "tree_id = ?", treeID).Error; err != nil {
+	if err := config.DB.First(&tree, "tree_id = ? AND LOWER(owner_wallet) = LOWER(?)", treeID, ownerWallet).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tree not found"})
 		return
 	}
