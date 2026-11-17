@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, Wallet, Loader2, ArrowRight, TreePine } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../hooks/authContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 

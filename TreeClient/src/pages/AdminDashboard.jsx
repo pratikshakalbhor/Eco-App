@@ -37,7 +37,7 @@ export default function AdminDashboard() {
     },
   });
 
-  const { data: activity = [], isLoading: activityLoading } = useQuery({
+  const { data: activity = [] } = useQuery({
     queryKey: ['recent-activity-admin'],
     queryFn: async () => {
       const { data } = await axios.get(`${API_URL}/api/activity/recent?limit=25`);
@@ -249,7 +249,7 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUsers.map((user, i) => (
+                    {filteredUsers.map((user) => (
                       <TableRow key={user.id} className="hover:bg-emerald-50/20 border-b border-slate-50 last:border-0">
                         <TableCell className="py-5 pl-10">
                           <div>
@@ -363,19 +363,19 @@ export default function AdminDashboard() {
 
 // ── Shared Subcomponents ────────────────────────────────────────
 
-const AdminStatCard = ({ title, value, subtitle, icon: Icon, color, unit }) => {
+const AdminStatCard = ({ title, value, subtitle, icon: Icon, color = 'emerald', unit }) => {
   const colors = {
-    emerald: 'bg-emerald-500 text-emerald-50 text-emerald-600 border-emerald-100',
-    teal: 'bg-teal-600 text-teal-50 text-teal-600 border-teal-100',
-    sky: 'bg-sky-500 text-sky-50 text-sky-600 border-sky-150',
+    emerald: 'bg-emerald-500',
+    teal: 'bg-teal-600',
+    sky: 'bg-sky-500',
   };
 
   return (
     <div className="bg-white rounded-3xl p-6 border border-emerald-50 shadow-sm relative overflow-hidden">
       <div className="absolute top-0 right-0 p-6 opacity-5"><Icon className="w-24 h-24" /></div>
       <div className="relative flex items-center gap-4">
-        <div className={`p-3 rounded-2xl bg-slate-50 border border-slate-100`}>
-          <Icon className="w-6 h-6 text-slate-700" />
+        <div className={`p-3 rounded-2xl text-white ${colors[color] || colors.emerald}`}>
+          <Icon className="w-6 h-6 text-white" />
         </div>
         <div>
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{title}</p>

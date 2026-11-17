@@ -74,7 +74,7 @@ const MapPage = () => {
     retry: 1,
   });
 
-  const treesList = Array.isArray(trees) ? trees : [];
+  const treesList = React.useMemo(() => (Array.isArray(trees) ? trees : []), [trees]);
 
   const filteredTrees = React.useMemo(() => {
     return treesList.filter((tree) => {

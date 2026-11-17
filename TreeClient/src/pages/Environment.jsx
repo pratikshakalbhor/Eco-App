@@ -187,7 +187,7 @@ export default function Environment() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {speciesStats?.map((s, i) => (
+                  {speciesStats?.map((s) => (
                     <TableRow key={s.species} className="border-b border-slate-50 hover:bg-emerald-50/30 transition-all cursor-default">
                       <TableCell className="py-5 pl-6 font-black text-slate-700">{s.species}</TableCell>
                       <TableCell className="text-center font-black">

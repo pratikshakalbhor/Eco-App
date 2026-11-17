@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { AuthProvider } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/authContext';
 
 // Mock axios
 vi.mock('axios', () => {
@@ -95,7 +96,7 @@ describe('useAuth Hook', () => {
 
   it('sets token in localStorage on successful login', async () => {
     const axios = (await import('axios')).default;
-    const { connectWallet, signMessage } = await import('@/utils/web3Service');
+    const { connectWallet } = await import('@/utils/web3Service');
 
     axios.get
       .mockResolvedValueOnce({ data: { nonce: 'abc123' } })  // GetNonce

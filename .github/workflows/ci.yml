@@ -6,51 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+# One run per branch/PR: a new push cancels the previous one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  frontend:
-    name: Frontend – Build & Test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: TreeClient
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          # jsdom@30 requires Node ^22.22.2 || ^24.15.0 || >=26.0.0
-          node-version: 22
-          cache: npm
-          cache-dependency-path: TreeClient/package-lock.json
-
-      - run: npm ci
-
-      - run: npx vitest run
-
-      - run: npm run build
-        env:
-          VITE_API_URL: http://localhost:8080
-
-  backend:
-    name: Backend – Vet & Test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: Backend/api-server
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-          cache-dependency-path: Backend/api-server/go.sum
-
-      - run: go vet ./...
-
-      - run: go test ./... -v -count=1
-
-  blockchain:
-    name: Blockchain – Compile & Test
+  contracts:
+    name: Contracts – Test, Gas & Coverage
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -68,4 +31,145 @@ jobs:
 
       - run: npx hardhat compile
 
-      - run: npx hardhat test
+      # REPORT_GAS makes hardhat-gas-reporter print the per-method table into
+      # the job log; the file is archived as an artifact as well.
+      - name: Tests (unit, integration, seeded invariants) with gas report
+        run: npx hardhat test
+        env:
+          REPORT_GAS: "true"
+          GAS_REPORT_FILE: gas-report.txt
+
+      - name: Coverage
+        run: npx hardhat coverage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contracts-gas-report
+          path: blockchain/gas-report.txt
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contracts-coverage
+          path: blockchain/coverage
+          if-no-files-found: warn
+
+  backend:
+    name: Backend – Vet, Coverage & Race
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Backend/api-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: Backend/api-server/go.mod
+          cache-dependency-path: Backend/api-server/go.sum
+
+      # go vet is the blocking lint gate. It catches the classes of bug this
+      # codebase has actually shipped (misused fmt verbs, lost errors,
+      # unreachable code).
+      - name: go vet
+        run: go vet ./...
+
+      - name: Tests with coverage
+        run: go test ./... -count=1 -coverprofile=coverage.out -covermode=count
+
+      - name: Per-package coverage report
+        run: go test ./... -count=1 -cover | tee coverage-summary.txt
+
+      - name: Enforce minimum total coverage
+        run: |
+          total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "Total statement coverage: ${total}% (minimum: 65%)"
+          if [ -z "$total" ]; then
+            echo "Could not read the coverage total" >&2
+            exit 1
+          fi
+          awk -v total="$total" 'BEGIN { exit !(total >= 65) }' || {
+            echo "::error::Total coverage ${total}% is below the 65% gate"
+            exit 1
+          }
+
+      # -race needs a C toolchain, which the ubuntu runner has. It is kept in
+      # CI only so contributors on Windows do not need gcc locally.
+      - name: Race detector
+        run: go test ./... -race -count=1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: |
+            Backend/api-server/coverage.out
+            Backend/api-server/coverage-summary.txt
+          if-no-files-found: warn
+
+  frontend:
+    name: Frontend – Lint, Test & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: TreeClient
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # jsdom@30 requires Node ^22.22.2 || ^24.15.0 || >=26.0.0
+          node-version: 22
+          cache: npm
+          cache-dependency-path: TreeClient/package-lock.json
+
+      - run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - run: npx vitest run
+
+      - run: npm run build
+        env:
+          VITE_API_URL: http://localhost:8080
+
+  security-report:
+    name: Contracts – Slither (non-blocking report)
+    runs-on: ubuntu-latest
+    # Slither findings are published for review but do not fail the build.
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: blockchain
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: blockchain/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: npm ci
+
+      - run: pip install slither-analyzer
+
+      - name: Slither
+        run: |
+          slither . \
+            --compile-force-framework hardhat \
+            --solc-remaps "@openzeppelin/contracts=node_modules/@openzeppelin/contracts" \
+            --exclude-dependencies \
+            > slither-report.txt 2>&1 || true
+          cat slither-report.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: slither-report
+          path: blockchain/slither-report.txt
+          if-no-files-found: warn

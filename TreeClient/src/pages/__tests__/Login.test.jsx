@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import Login from '@/pages/Login';
 
 // Mock useAuth
-vi.mock('@/hooks/useAuth', () => ({
+vi.mock('@/hooks/authContext', () => ({
   useAuth: () => ({
     user: null,
     loading: false,

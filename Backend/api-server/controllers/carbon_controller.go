@@ -95,10 +95,14 @@ func GetUserCarbonCredits(c *gin.Context) {
 		Select("COALESCE(SUM(co2_lost_kg), 0)").Scan(&envDebt)
 	envDebtActive = openDebts > 0
 
-	// Sustainability score: starts at 100, penalized by env debt
+	// Sustainability score: starts at 100, penalized by environmental debt.
+	// creditsEarned/creditsLost are in credits and envDebt is in kg, so the kg
+	// figure is converted to credits first — adding the raw units made the
+	// penalty 1000x larger than intended.
 	sustainabilityScore := 100.0
 	if creditsEarned > 0 {
-		sustainabilityScore = (creditsEarned / (creditsEarned + creditsLost + envDebt + 0.01)) * 100
+		debtCredits := services.KgToCredits(envDebt)
+		sustainabilityScore = (creditsEarned / (creditsEarned + creditsLost + debtCredits + 0.01)) * 100
 	}
 
 	c.JSON(http.StatusOK, gin.H{

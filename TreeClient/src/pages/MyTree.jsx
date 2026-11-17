@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import API_URL from "../utils/config.js";
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import {
   TreePine, Search, Plus, ShieldCheck, Clock, AlertCircle, MapPin, Sprout
 } from 'lucide-react';

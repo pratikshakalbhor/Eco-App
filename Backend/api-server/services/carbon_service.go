@@ -39,3 +39,30 @@ func CreditsForTree(rateKgPerYear, ageYears float64) float64 {
 	kg := rateKgPerYear * ageYears
 	return math.Round((kg/KgCO2PerCredit())*10000) / 10000
 }
+
+// Canonical CO2 unit conversions.
+//
+// The database stores two different quantities:
+//   - carbon_credits.amount is in CREDITS (1 credit = KgCO2PerCredit() kg);
+//   - environmental_losses.co2_lost_kg and tree absorption rates are in KG.
+//
+// Adding the two without converting silently overstates (or understates) the
+// result by a factor of 1000. Every endpoint that combines them must go
+// through CreditsToKg/KgToCredits/NetCO2BalanceKg.
+
+// CreditsToKg converts a credit amount to kilograms of CO2e.
+func CreditsToKg(credits float64) float64 {
+	return credits * KgCO2PerCredit()
+}
+
+// KgToCredits converts kilograms of CO2e to credits.
+func KgToCredits(kg float64) float64 {
+	return kg / KgCO2PerCredit()
+}
+
+// NetCO2BalanceKg returns absorbed minus lost CO2e. Both arguments MUST be in
+// kilograms; this helper exists so a credits value cannot be passed by
+// accident in one of the two positions.
+func NetCO2BalanceKg(absorbedKg, lostKg float64) float64 {
+	return absorbedKg - lostKg
+}

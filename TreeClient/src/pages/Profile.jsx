@@ -5,7 +5,7 @@ import {
     User as UserIcon, TrendingUp, TrendingDown, Scissors,
     RefreshCcw, ShieldAlert, FileText, Download, Activity, AlertTriangle, Zap, ArrowUpRight
 } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../hooks/authContext";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Badge } from "@/components/ui/Badge";

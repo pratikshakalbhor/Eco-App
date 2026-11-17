@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import MenuItems from "./MenuItems";
 import { User, LogOut } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../hooks/authContext";
 
 const Sidebar = ({ setSidebarOpen }) => {
   const navigate = useNavigate();

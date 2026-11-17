@@ -3,7 +3,7 @@ import API_URL from "../utils/config.js";
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import axios from 'axios';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/authContext';
 import {
   TreePine, MapPin, Calendar, Activity,
   ShieldCheck, Clock, AlertCircle, ChevronLeft,

@@ -35,7 +35,14 @@ blockchain/artifacts/
 blockchain/cache/
 blockchain/typechain/
 blockchain/typechain-types/
-blockchain/deployments/
+blockchain/gas-report.txt
+blockchain/coverage.json
+blockchain/slither-report.txt
+# Deployment records contain live addresses but no secrets. Keep the JSON
+# out of git (they are network-specific) while committing the README that
+# explains the format and links the addresses to a block explorer.
+blockchain/deployments/*.json
+!blockchain/deployments/README.md
 blockchain/.env
 blockchain/.env.*
 !blockchain/.env.example
@@ -47,10 +54,23 @@ blockchain/.env.*
 *.db
 *.sqlite
 *.sqlite3
+coverage
+coverage.*
 coverage/
+lcov.info
 *.cover
 *.log
 .DS_Store
+
+# --- Private key material ---
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+keystore*
+*.keystore
 
 # --- General / OS / Editors ---
 .vscode/

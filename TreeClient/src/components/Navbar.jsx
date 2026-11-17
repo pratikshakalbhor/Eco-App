@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import API_URL from "../utils/config.js";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../hooks/authContext";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { LogOut, Coins, Bell, Clock, Eye } from "lucide-react";

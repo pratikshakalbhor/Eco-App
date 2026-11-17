@@ -12,18 +12,16 @@ import (
 	"github.com/google/uuid"
 )
 
-const testRegisterTxHash = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
 func registerTreeBody() map[string]interface{} {
 	return map[string]interface{}{
-		"species":             "oak",
-		"nickname":            "Oakley",
-		"latitude":            28.6139,
-		"longitude":           77.2090,
-		"location":            "New Delhi",
-		"planting_date":       "2024-01-15",
+		"species":            "oak",
+		"nickname":           "Oakley",
+		"latitude":           28.6139,
+		"longitude":          77.2090,
+		"location":           "New Delhi",
+		"planting_date":      "2024-01-15",
 		"blockchain_token_id": "101",
-		"transaction_hash":    testRegisterTxHash,
+		"transaction_hash":   testTxHash,
 	}
 }
 

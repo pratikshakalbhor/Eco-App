@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { menuItemsData, journeyMenuItems, exploreMenuItems, adminMenuItems } from '../data/menuItemsData.jsx';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/authContext';
 
 const GroupLabel = ({ children }) => (
   <p className="px-4 pt-5 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">

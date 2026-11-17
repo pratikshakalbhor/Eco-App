@@ -11,7 +11,7 @@ import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { getEcoTokenBalance, isEcoTokenFrozen, isSepoliaNetwork, switchToSepolia, burnCreditsOnChain } from '../utils/web3Service';
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from '../hooks/authContext';
 
 // How carbon credits work, explained simply.
 const HOW_IT_WORKS = [

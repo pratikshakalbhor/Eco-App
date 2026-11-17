@@ -14,21 +14,8 @@ const statusColors = {
   archived: 'bg-gray-100 text-gray-800 border-gray-200',
 };
 
-function safeDate(value) {
-  if (!value) return null;
-  const d = new Date(value);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-function formatDate(value, opts = { dateStyle: 'medium' }) {
-  const d = safeDate(value);
-  if (!d) return 'N/A';
-  return d.toLocaleDateString(undefined, opts);
-}
-
 export default function TreeCard({ tree, onClick, index = 0 }) {
   const plantedDate = tree.planted_at || tree.planted_date;
-  const verifiedDate = tree.verified_at || tree.verified_date;
 
   const ageDays = plantedDate ? Math.floor((new Date() - new Date(plantedDate)) / (1000 * 60 * 60 * 24)) : 0;
   const ageMonths = Math.floor(ageDays / 30);

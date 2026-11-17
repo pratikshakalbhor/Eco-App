@@ -2,13 +2,16 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import StatsCard from '@/components/shared/StatsCard';
 
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, initial, animate, transition, whileHover, ...props }) => (
-      <div {...props}>{children}</div>
-    ),
-  },
-}));
+vi.mock('framer-motion', () => {
+  const ignored = new Set(['initial', 'animate', 'transition', 'whileHover']);
+  const clean = (props) =>
+    Object.fromEntries(Object.entries(props).filter(([key]) => !ignored.has(key)));
+  return {
+    motion: {
+      div: ({ children, ...props }) => <div {...clean(props)}>{children}</div>,
+    },
+  };
+});
 
 function MockIcon(props) {
   return <svg data-testid="mock-icon" {...props} />;

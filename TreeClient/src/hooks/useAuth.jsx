@@ -1,9 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import API_URL from "../utils/config.js";
 import axios from 'axios';
 import { connectWallet, signMessage } from '../utils/web3Service';
-
-const AuthContext = createContext(null);
+import { AuthContext } from './authContext';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -52,29 +51,29 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('eco_token');
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
-  };
+  }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     const token = localStorage.getItem('eco_token');
     if (token) {
       try {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         const { data } = await axios.get(`${API_URL}/api/auth/me`);
         setUser(data);
-      } catch (err) {
+      } catch {
         logout();
       }
     }
     setLoading(false);
-  };
+  }, [logout]);
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, loading }}>
@@ -82,5 +81,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-export const useAuth = () => useContext(AuthContext);

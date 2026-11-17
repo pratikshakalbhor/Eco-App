@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/authContext';
 
 import ListingCard from '@/components/marketplace/ListingCard';
 import BuyModal from '@/components/marketplace/BuyModal';
