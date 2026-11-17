@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import API_URL from "../utils/config.js";
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -35,6 +35,7 @@ export default function ReportCut() {
     evidence_image_url: '',
     latitude: null,
     longitude: null,
+    accuracy: null,
   });
   const [evidenceFile, setEvidenceFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -63,10 +64,23 @@ export default function ReportCut() {
     }
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        // The accuracy of the fix is sent with the report: the backend only
+        // accepts a cut report when the device could locate itself to within
+        // 25 metres, otherwise the 100 m geofence check proves nothing.
+        const accuracy = position.coords.accuracy;
+        if (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy <= 0) {
+          setError("Your device did not report an accurate GPS position. Please enable location services and try again.");
+          return;
+        }
+        if (accuracy > 25) {
+          setError(`Your GPS position is only accurate to ${Math.round(accuracy)} m. A reading of 25 m or better is required to report a cut.`);
+          return;
+        }
         setForm(prev => ({
           ...prev,
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          accuracy,
         }));
       },
       () => setError("Could not get location. Please allow location access for verification.")
@@ -105,6 +119,10 @@ export default function ReportCut() {
       setError('Please capture your GPS location before submitting.');
       return;
     }
+    if (form.accuracy == null || form.accuracy > 25) {
+      setError('Your GPS position must be accurate to within 25 metres to submit a cut report.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -117,6 +135,7 @@ export default function ReportCut() {
         evidence_image_url: evidenceUrl,
         latitude: form.latitude,
         longitude: form.longitude,
+        accuracy: form.accuracy,
       });
 
       setSuccess(true);

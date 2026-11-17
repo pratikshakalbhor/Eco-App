@@ -4,10 +4,13 @@ import (
 	"ecochain-backend/config"
 	"ecochain-backend/models"
 	"ecochain-backend/services"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -210,10 +213,46 @@ func GetCutReports(c *gin.Context) {
 func ConfirmCut(c *gin.Context) {
 	treeID := c.Param("id")
 
+	var input struct {
+		TxHash string `json:"tx_hash"`
+	}
+	// The body is optional when RPC is not configured (dev/test), but when it
+	// is present it must carry the transaction that confirmed the cut.
+	if err := c.ShouldBindJSON(&input); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if os.Getenv("RPC_URL") != "" && input.TxHash == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "tx_hash is required: the on-chain confirmCut transaction must be supplied",
+		})
+		return
+	}
+
+	var settlement *services.CutSettlement
+	if input.TxHash != "" {
+		decoded, err := services.CutSettlementDecoder(input.TxHash)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cut confirmation transaction not confirmed: " + err.Error()})
+			return
+		}
+		settlement = decoded
+	}
+
 	var tree models.Tree
 	if err := config.DB.First(&tree, "tree_id = ?", treeID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tree not found"})
 		return
+	}
+
+	// The chain evidence must describe this tree and this owner; otherwise a
+	// verifier could confirm a cut on another tree's transaction.
+	if settlement != nil {
+		if err := services.ValidateCutSettlement(settlement, tree.BlockchainTokenID, tree.OwnerWallet); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cut confirmation transaction does not match this tree: " + err.Error()})
+			return
+		}
 	}
 
 	if tree.Status != "CUT_REPORTED" {
@@ -259,6 +298,11 @@ func ConfirmCut(c *gin.Context) {
 	impact := services.CalculateEnvironmentalLoss(tree)
 	co2Lost := impact.CarbonLoss
 	replacementNeeded := impact.RequiredTrees
+	if settlement != nil && settlement.Debt.ReplacementsNeeded > 0 {
+		// The chain is authoritative: the debt the planter is actually held
+		// to is the one created on-chain.
+		replacementNeeded = int(settlement.Debt.ReplacementsNeeded)
+	}
 
 	// Count total credits actually issued for this tree (authoritative ledger).
 	var totalCredits struct{ Total float64 }
@@ -287,13 +331,14 @@ func ConfirmCut(c *gin.Context) {
 
 	// 4. Create replantation debt
 	debt := models.ReplantationDebt{
-		ID:             uuid.New(),
-		OriginalTreeID: treeID,
-		OwnerWallet:    tree.OwnerWallet,
-		TreesNeeded:    replacementNeeded,
-		Status:         "PENDING",
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:              uuid.New(),
+		OriginalTreeID:  treeID,
+		OwnerWallet:     tree.OwnerWallet,
+		TreesNeeded:     replacementNeeded,
+		Status:          "PENDING",
+		TransactionHash: input.TxHash,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	if err := tx.Create(&debt).Error; err != nil {

@@ -6,6 +6,7 @@ import (
 	"ecochain-backend/services"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -183,6 +184,20 @@ func BurnCarbonCredits(c *gin.Context) {
 		return
 	}
 
+	// Verify the retirement on-chain before touching the ledger. In local/dev
+	// setups without an RPC endpoint the hash is recorded as-is; production
+	// (RPC_URL set) must prove it.
+	if os.Getenv("RPC_URL") != "" {
+		burn, err := services.CreditBurnDecoder(req.TxHash)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Burn transaction not confirmed: " + err.Error()})
+			return
+		}
+		if err := services.ValidateCreditBurn(burn, wallet, req.Amount); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Burn transaction does not match this wallet and amount: " + err.Error()})
+			return
+		}
+	}
 
 	// Record burn as negative credit entry
 	burnRecord := models.CarbonCredit{

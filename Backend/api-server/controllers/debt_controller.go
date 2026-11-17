@@ -3,8 +3,10 @@ package controllers
 import (
 	"ecochain-backend/config"
 	"ecochain-backend/models"
+	"ecochain-backend/services"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -93,11 +95,32 @@ func LinkTreeToDebt(c *gin.Context) {
 
 	var input struct {
 		TreeID string `json:"tree_id" binding:"required"`
+		TxHash string `json:"tx_hash"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// With an RPC endpoint configured, a replantation link must be backed by
+	// the on-chain markReplanted transaction. Without it the debt progress is
+	// pure off-chain bookkeeping.
+	if os.Getenv("RPC_URL") != "" && input.TxHash == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "tx_hash is required: the on-chain markReplanted transaction must be supplied",
+		})
+		return
+	}
+
+	var replanted *services.TreeReplantedEvent
+	if input.TxHash != "" {
+		decoded, err := services.ReplantationDecoder(input.TxHash)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Replantation transaction not confirmed: " + err.Error()})
+			return
+		}
+		replanted = decoded
 	}
 
 	walletAddressRaw, exists := c.Get("walletAddress")
@@ -138,6 +161,20 @@ func LinkTreeToDebt(c *gin.Context) {
 		return
 	}
 
+	// When a transaction was supplied, the decoded event must name exactly
+	// this replacement tree and this debt's original tree.
+	if replanted != nil {
+		var originalTree models.Tree
+		if err := config.DB.First(&originalTree, "tree_id = ?", debt.OriginalTreeID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Original tree not found"})
+			return
+		}
+		if err := services.ValidateReplantation(replanted, tree.BlockchainTokenID, originalTree.BlockchainTokenID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Replantation transaction does not match this debt: " + err.Error()})
+			return
+		}
+	}
+
 	// Check not already linked
 	var existingLink models.ReplacementTree
 	if config.DB.Where("debt_id = ? AND tree_id = ?", debtID, input.TreeID).First(&existingLink).Error == nil {
@@ -149,10 +186,11 @@ func LinkTreeToDebt(c *gin.Context) {
 
 	// Create the link
 	link := models.ReplacementTree{
-		ID:       uuid.New(),
-		DebtID:   debt.ID,
-		TreeID:   input.TreeID,
-		LinkedAt: time.Now(),
+		ID:              uuid.New(),
+		DebtID:          debt.ID,
+		TreeID:          input.TreeID,
+		LinkedAt:        time.Now(),
+		TransactionHash: input.TxHash,
 	}
 
 	if err := tx.Create(&link).Error; err != nil {

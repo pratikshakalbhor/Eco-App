@@ -1,21 +1,28 @@
 import { ethers } from "ethers";
 import EcoChainTreeABI from "../contracts/EcoChainTree.json";
 import EcoTokenABI from "../contracts/EcoToken.json";
-import CarbonCreditABI from "../contracts/CarbonCredit.json";
-import EcoTreeABI from "../contracts/EcoTree.json";
-import TreeCuttingReportABI from "../contracts/TreeCuttingReport.json";
 import ReplantationRegistryABI from "../contracts/ReplantationRegistry.json";
+import { describeChainError, formatEcoBalance } from "./chainErrors";
+
+/**
+ * Run a contract write and rethrow failures as readable messages.
+ * Permission errors from the contracts are shown as permission errors, never
+ * as gas problems.
+ */
+const withFriendlyErrors = async (label, fn) => {
+  try {
+    return await fn();
+  } catch (error) {
+    throw new Error(`${label} failed: ${describeChainError(error)}`);
+  }
+};
+
 
 // ─── Contract Addresses from Environment ────────────────────────────────────
-// Each DEPLOYED contract has ONE canonical environment variable. The
-// ecoToken/carbonCredit and ecoChainTree/ecoTree lookups historically pointed
-// at the same deployed contracts; carbonCredit/ecoTree now fall back to the
-// canonical variables so the duplicate VITE_* aliases are no longer needed.
+// One variable per deployed contract. These are the verified deployments from
+// blockchain/scripts/deploy.js (verified live via eth_getCode on Sepolia).
 const CONTRACT_ADDRESSES = {
   ecoToken: import.meta.env.VITE_ECO_TOKEN,
-  carbonCredit: import.meta.env.VITE_ECO_TOKEN,
-  ecoTree: import.meta.env.VITE_ECO_CHAIN_TREE,
-  treeCuttingReport: import.meta.env.VITE_TREE_CUTTING_REPORT,
   ecoChainTree: import.meta.env.VITE_ECO_CHAIN_TREE,
   replantationRegistry: import.meta.env.VITE_REPLANTATION_REGISTRY,
 };
@@ -168,15 +175,12 @@ export const signMessage = async (message) => {
 
 /**
  * Get a contract instance connected to the signer.
- * @param {"ecoToken"|"carbonCredit"|"ecoTree"|"treeCuttingReport"|"ecoChainTree"} contractName
+ * @param {"ecoToken"|"ecoChainTree"|"replantationRegistry"} contractName
  * @param {ethers.Signer} signer
  */
 export const getContract = (contractName, signer) => {
   const abiMap = {
     ecoToken: EcoTokenABI.abi,
-    carbonCredit: CarbonCreditABI.abi,
-    ecoTree: EcoTreeABI.abi,
-    treeCuttingReport: TreeCuttingReportABI.abi,
     ecoChainTree: EcoChainTreeABI.abi,
     replantationRegistry: ReplantationRegistryABI.abi,
   };
@@ -201,110 +205,133 @@ export const getReadOnlyContract = async (contractName) => {
 };
 
 // ─── EcoChainTree Operations ────────────────────────────────────────────────
+// registerTree is permissionless: planter = msg.sender automatically.
 
 /**
  * Register a tree on the EcoChainTree contract.
+ * @param {string} ipfsHash - IPFS hash of tree metadata/photo
+ * @param {string} metadataURI - metadata URI
  * @returns {{ receipt, tokenId: string }}
  */
-export const registerTreeOnChain = async (planterAddress, ipfsHash, metadataURI) => {
+export const registerTreeOnChain = async (ipfsHash, metadataURI) => {
   const { signer } = await connectWallet();
   const contract = getContract("ecoChainTree", signer);
 
-  const tx = await contract.registerTree(planterAddress, ipfsHash, metadataURI);
-  const receipt = await tx.wait();
+  return withFriendlyErrors("Tree registration", async () => {
+    const tx = await contract.registerTree(ipfsHash, metadataURI);
+    const receipt = await tx.wait();
 
-  // Extract tokenId from TreeRegistered event
-  const event = receipt.logs
-    .map((log) => {
-      try {
-        return contract.interface.parseLog(log);
-      } catch {
-        return null;
-      }
-    })
-    .find((parsedLog) => parsedLog && parsedLog.name === "TreeRegistered");
+    // Extract tokenId from TreeRegistered event
+    const event = receipt.logs
+      .map((log) => {
+        try {
+          return contract.interface.parseLog(log);
+        } catch {
+          return null;
+        }
+      })
+      .find((parsedLog) => parsedLog && parsedLog.name === "TreeRegistered");
 
-  return {
-    receipt,
-    tokenId: event ? event.args.tokenId.toString() : null,
-    txHash: receipt.hash,
-  };
+    return {
+      receipt,
+      tokenId: event ? event.args.tokenId.toString() : null,
+      txHash: receipt.hash,
+    };
+  });
 };
 
 /**
  * Verify a tree on-chain (EcoChainTree — verifier role required).
+ * @param {string|number} tokenId - tree NFT token id
+ * @param {number} carbonScorePerYear - absorption rate in kg CO2/year, scaled by 100
+ * @param {number} plantedAt - unix timestamp when tree was planted
+ * @returns {{ receipt, txHash }}
  */
-export const verifyTreeOnChain = async (tokenId, carbonScore = 1850) => {
+export const verifyTreeOnChain = async (tokenId, carbonScorePerYear = 1850, plantedAt) => {
   const { signer } = await connectWallet();
   const contract = getContract("ecoChainTree", signer);
 
-  const tx = await contract.verifyTree(tokenId, carbonScore);
-  const receipt = await tx.wait();
-  return { receipt, txHash: receipt.hash };
+  return withFriendlyErrors("Tree verification", async () => {
+    const tx = await contract.verifyTree(tokenId, carbonScorePerYear, plantedAt);
+    const receipt = await tx.wait();
+    return { receipt, txHash: receipt.hash };
+  });
+};
+
+/**
+ * Report a tree as cut on-chain (EcoChainTree — verifier role required).
+ * Must run before confirmCut, which only accepts a tree in CUT_REPORTED.
+ * @param {string|number} tokenId
+ * @returns {{ receipt, txHash }}
+ */
+export const reportTreeCutOnChain = async (tokenId) => {
+  const { signer } = await connectWallet();
+  const contract = getContract("ecoChainTree", signer);
+
+  return withFriendlyErrors("Cut report", async () => {
+    const tx = await contract.reportCut(tokenId);
+    const receipt = await tx.wait();
+    return { receipt, txHash: receipt.hash };
+  });
 };
 
 /**
  * Confirm a tree cut on-chain (EcoChainTree — verifier role required).
+ * Creates replantation debt and freezes the planter's credits.
+ * @param {string|number} tokenId - tree NFT token id
+ * @param {number} replacementsNeeded - max(3, ceil(ageYears/2))
+ * @returns {{ receipt, txHash }}
  */
-export const confirmTreeCutOnChain = async (tokenId) => {
+export const confirmTreeCutOnChain = async (tokenId, replacementsNeeded = 3) => {
   const { signer } = await connectWallet();
   const contract = getContract("ecoChainTree", signer);
 
-  const tx = await contract.confirmCut(tokenId);
-  const receipt = await tx.wait();
-  return { receipt, txHash: receipt.hash };
+  return withFriendlyErrors("Cut confirmation", async () => {
+    const tx = await contract.confirmCut(tokenId, replacementsNeeded);
+    const receipt = await tx.wait();
+    return { receipt, txHash: receipt.hash };
+  });
 };
 
 /**
- * Create replantation debt record on-chain (ReplantationRegistry).
+ * Register a verified replacement tree against the original tree's open debt
+ * (EcoChainTree.markReplanted — verifier role required). The EcoChainTree
+ * contract is the only account the ReplantationRegistry trusts, so this is
+ * the only on-chain replant path.
+ * @param {string|number} replacementTokenId - verified replacement tree token id
+ * @param {string|number} originalTokenId - token id of the tree that was cut
+ * @returns {{ receipt, txHash }}
  */
-export const createReplantationDebtOnChain = async (originalTokenId, debtorAddress, replacementsNeeded) => {
+export const markReplantedOnChain = async (replacementTokenId, originalTokenId) => {
   const { signer } = await connectWallet();
-  const contract = getContract("replantationRegistry", signer);
+  const contract = getContract("ecoChainTree", signer);
 
-  const tx = await contract.createDebt(originalTokenId, debtorAddress, replacementsNeeded);
-  const receipt = await tx.wait();
-  
-  // Extract debtId from DebtCreated event
-  const event = receipt.logs
-    .map((log) => {
-      try {
-        return contract.interface.parseLog(log);
-      } catch {
-        return null;
-      }
-    })
-    .find((parsedLog) => parsedLog && parsedLog.name === "DebtCreated");
-
-  return { 
-    receipt, 
-    txHash: receipt.hash,
-    debtId: event ? event.args.debtId.toString() : null
-  };
+  return withFriendlyErrors("Linking the replacement tree", async () => {
+    const tx = await contract.markReplanted(replacementTokenId, originalTokenId);
+    const receipt = await tx.wait();
+    return { receipt, txHash: receipt.hash };
+  });
 };
 
 /**
- * Link a replacement tree to a debt on-chain (ReplantationRegistry).
+ * Burn credits on-chain (EcoToken.burn), permanently retiring them.
+ *
+ * The returned transaction hash must be posted to /api/credits/burn, where the
+ * backend decodes the ERC-20 Transfer-to-zero event and records the retirement.
+ * @param {string|number} amount - credits to burn (18-decimal token units)
+ * @returns {{ receipt, txHash }}
  */
-export const linkReplacementTreeOnChain = async (debtId, replacementTokenId) => {
+export const burnCreditsOnChain = async (amount) => {
   const { signer } = await connectWallet();
-  const contract = getContract("replantationRegistry", signer);
+  const contract = getContract("ecoToken", signer);
+  const parsed = ethers.parseUnits(String(amount), 18);
+  if (parsed <= 0n) throw new Error("Burn amount must be greater than zero");
 
-  const tx = await contract.linkReplacement(debtId, replacementTokenId);
-  const receipt = await tx.wait();
-  return { receipt, txHash: receipt.hash };
-};
-
-/**
- * Clear a replantation debt on-chain (ReplantationRegistry).
- */
-export const clearDebtOnChain = async (debtId, certificateURI = "") => {
-  const { signer } = await connectWallet();
-  const contract = getContract("replantationRegistry", signer);
-
-  const tx = await contract.clearDebt(debtId, certificateURI);
-  const receipt = await tx.wait();
-  return { receipt, txHash: receipt.hash };
+  return withFriendlyErrors("Credit burn", async () => {
+    const tx = await contract.burn(parsed);
+    const receipt = await tx.wait();
+    return { receipt, txHash: receipt.hash };
+  });
 };
 
 /**
@@ -315,24 +342,10 @@ export const getTreeDetailsOnChain = async (tokenId) => {
   return contract.getTreeDetails(tokenId);
 };
 
-// ─── TreeCuttingReport Operations ───────────────────────────────────────────
-
-/**
- * Report a tree cutting on-chain.
- */
-export const reportTreeCutting = async (tokenId, reason) => {
-  const { signer } = await connectWallet();
-  const contract = getContract("treeCuttingReport", signer);
-
-  const tx = await contract.reportCutting(tokenId, reason);
-  const receipt = await tx.wait();
-  return { receipt, txHash: receipt.hash };
-};
-
 // ─── EcoToken (ERC-20) Operations ───────────────────────────────────────────
 
 /**
- * Get ECO token balance for an address.
+ * Get ECO token balance for an address (18 decimals, display string).
  */
 export const getEcoTokenBalance = async (address) => {
   const contract = await getReadOnlyContract("ecoToken");
@@ -341,26 +354,25 @@ export const getEcoTokenBalance = async (address) => {
   return ethers.formatUnits(balance, decimals);
 };
 
-// ─── CarbonCredit (ERC-20) Operations ───────────────────────────────────────
-
 /**
- * Get Carbon Credit token balance for an address.
+ * Get the raw on-chain ECO balance (bigint, 18 decimals).
  */
-export const getCarbonCreditBalance = async (address) => {
-  const contract = await getReadOnlyContract("carbonCredit");
-  const balance = await contract.balanceOf(address);
-  const decimals = await contract.decimals();
-  return ethers.formatUnits(balance, decimals);
+export const getEcoTokenBalanceRaw = async (address) => {
+  const contract = await getReadOnlyContract("ecoToken");
+  return contract.balanceOf(address);
 };
 
-// ─── EcoTree (NFT) Operations ───────────────────────────────────────────────
-
 /**
- * Get EcoTree NFT balance for an address.
+ * Check if an account is frozen (cannot transfer or burn credits).
+ * Mirrors EcoToken.isFrozen / the public `frozen` mapping.
  */
-export const getEcoTreeBalance = async (address) => {
-  const contract = await getReadOnlyContract("ecoTree");
-  return (await contract.balanceOf(address)).toString();
+export const isEcoTokenFrozen = async (address) => {
+  const contract = await getReadOnlyContract("ecoToken");
+  try {
+    return await contract.isFrozen(address);
+  } catch {
+    return contract.frozen(address);
+  }
 };
 
 /**
@@ -380,4 +392,5 @@ export const findDebtIdForOriginalTree = async (userAddress, originalTokenId) =>
 
 // ─── Utility Exports ────────────────────────────────────────────────────────
 
-export { CONTRACT_ADDRESSES, SEPOLIA_CHAIN_ID };
+export { CONTRACT_ADDRESSES, SEPOLIA_CHAIN_ID, formatEcoBalance };
+export { describeChainError, formatTokenAmount } from "./chainErrors";

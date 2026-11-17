@@ -12,8 +12,6 @@ import { Badge } from "@/components/ui/Badge";
 import { motion } from "framer-motion";
 import { 
     getEcoTokenBalance, 
-    getCarbonCreditBalance, 
-    getEcoTreeBalance, 
     isSepoliaNetwork, 
     switchToSepolia,
     CONTRACT_ADDRESSES
@@ -64,12 +62,8 @@ const Profile = () => {
       setOnSepolia(isSep);
       if (isSep) {
         try {
-          const [eco, carbon, nfts] = await Promise.all([
-            getEcoTokenBalance(user.wallet_address),
-            getCarbonCreditBalance(user.wallet_address),
-            getEcoTreeBalance(user.wallet_address)
-          ]);
-          setWeb3Data({ ecoBalance: eco, carbonBalance: carbon, nftCount: nfts });
+          const eco = await getEcoTokenBalance(user.wallet_address);
+          setWeb3Data({ ecoBalance: eco, carbonBalance: eco, nftCount: '0' });
         } catch (err) {
           console.error("Profile Web3 fetch failed:", err);
         }
@@ -144,6 +138,11 @@ const Profile = () => {
                     <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 rounded-xl text-white text-[10px] font-black uppercase">
                         Active Listings: {balance?.currently_listed?.toFixed(2) || '0.00'}
                     </div>
+                    {onSepolia && (
+                        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-[10px] font-black uppercase" title="Balance in your connected wallet">
+                            On-chain: {web3Data.ecoBalance} ECO
+                        </div>
+                    )}
                 </div>
                 
                 <CreditBalanceCard balance={balance} />

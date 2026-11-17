@@ -4,10 +4,10 @@ import (
 	"ecochain-backend/config"
 	"ecochain-backend/models"
 	"ecochain-backend/services"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -132,7 +132,7 @@ func VerifyTree(c *gin.Context) {
 	var input struct {
 		Status string `json:"status" binding:"required"` // VERIFIED or REJECTED
 		Notes  string `json:"notes"`
-		TxHash string `json:"tx_hash"` // on-chain verification transaction (optional)
+		TxHash string `json:"tx_hash"` // on-chain verification transaction
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -140,41 +140,87 @@ func VerifyTree(c *gin.Context) {
 		return
 	}
 
-	var tree models.Tree
-	if err := config.DB.First(&tree, "id = ?", treeID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Tree not found"})
+	// When a chain endpoint is configured the on-chain transaction is
+	// mandatory. Without it the off-chain state change is unbacked by the
+	// chain, and the verifier audit — the whole point of this endpoint —
+	// proves nothing.
+	if os.Getenv("RPC_URL") != "" && input.TxHash == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "tx_hash is required: the on-chain verification transaction must be supplied",
+		})
 		return
 	}
 
 	verifierIDString, _ := c.Get("userID")
 	verifierID, _ := uuid.Parse(verifierIDString.(string))
+	verifierWalletRaw, _ := c.Get("walletAddress")
+	verifierWallet := fmt.Sprintf("%v", verifierWalletRaw)
 
 	now := time.Now()
+	var chainCredits float64
+	var chainEvent *services.CreditsMintedEvent
+	var chainTxHash string
 	// Map status to uppercase as per requirements
-	status := "PENDING_VERIFICATION"
+	status := ""
 	switch input.Status {
 	case "approve", "VERIFIED":
 		status = "VERIFIED"
 	case "reject", "REJECTED":
 		status = "REJECTED"
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "status must be VERIFIED or REJECTED"})
+		return
 	}
 
-	if status == "VERIFIED" {
-		// Gate the off-chain verification on the on-chain transaction when one
-		// is reported and an RPC endpoint is configured. The client already
-		// awaits tx confirmation before calling us; this closes the replay gap.
-		if input.TxHash != "" {
-			err := services.VerifyTxSucceeded(input.TxHash)
-			if err != nil {
-				if errors.Is(err, services.ErrRPCNotConfigured) {
-					log.Printf("WARNING: RPC_URL not set; skipping chain receipt check for tx %s", input.TxHash)
-				} else {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Verification transaction not confirmed: " + err.Error()})
-					return
-				}
-			} else {
-				log.Printf("CHAIN_OK: verification tx %s confirmed for tree %s", input.TxHash, tree.TreeID)
-			}
+	if status == "VERIFIED" && input.TxHash != "" {
+		// Gate the off-chain verification on the on-chain transaction and
+		// decode the CreditsMinted event. The credit amount comes from the
+		// event, never from the client.
+		event, err := services.CreditsMintedDecoder(input.TxHash)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Verification transaction not confirmed: " + err.Error()})
+			return
+		}
+		chainCredits = services.WeiToFloat(event.Amount)
+		chainEvent = event
+		chainTxHash = input.TxHash
+		log.Printf("CHAIN_OK: verification tx %s confirmed for tree %s (minted %s credits to %s)", input.TxHash, treeID, event.Amount, event.Planter.Hex())
+	}
+
+	tx := config.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+
+	// Lock the tree row for the rest of the transaction. Without the lock two
+	// concurrent verifications could both observe PENDING_VERIFICATION and
+	// both issue credits.
+	var tree models.Tree
+	if err := lockRow(tx).First(&tree, "id = ?", treeID).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tree not found"})
+		return
+	}
+
+	// A tree may only be processed once. Without this precondition a second
+	// call issued a second set of carbon credits and a second XP award.
+	if tree.Status != "PENDING_VERIFICATION" {
+		tx.Rollback()
+		c.JSON(http.StatusConflict, gin.H{
+			"error":  fmt.Sprintf("Tree has already been processed (status %s) and cannot be verified again", tree.Status),
+			"status": tree.Status,
+		})
+		return
+	}
+
+	// When a chain transaction was supplied, validate that the event matches
+	// this tree and its owner before issuing any credits.
+	if chainEvent != nil {
+		if err := services.ValidateCreditsMinted(chainEvent, tree.BlockchainTokenID, tree.OwnerWallet); err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Verification transaction does not match this tree: " + err.Error()})
+			return
 		}
 	}
 
@@ -183,7 +229,6 @@ func VerifyTree(c *gin.Context) {
 	tree.VerifiedBy = &verifierID
 	tree.UpdatedAt = now
 
-	tx := config.DB.Begin()
 	if err := tx.Save(&tree).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tree status"})
@@ -210,21 +255,34 @@ func VerifyTree(c *gin.Context) {
 		tx.Model(&models.User{}).Where("id = ?", tree.PlanterID).Update("xp_points", gorm.Expr("xp_points + ?", 100))
 
 		// 2. Issue carbon credits for CO2 sequestered to date.
-		//    The amount is derived from the tree's absorption rate and age via
-		//    the documented, configurable model in services.CreditsForTree
-		//    (1 credit = CARBON_KG_PER_CREDIT kg CO2e, default 1 tonne).
-		creditsIssued := services.CreditsForTree(tree.CarbonAbsorptionRate, services.TreeAgeYears(tree.PlantedAt))
+		//    The amount comes from the chain-decoded CreditsMinted event,
+		//    never from the client. In dev mode without RPC the amount is
+		//    derived from the tree's absorption rate and age via
+		//    services.CreditsForTree (1 credit = CARBON_KG_PER_CREDIT kg
+		//    CO2e, default 1 tonne).
+		var creditsIssued float64
+		if chainCredits > 0 {
+			creditsIssued = chainCredits
+		} else {
+			creditsIssued = services.CreditsForTree(tree.CarbonAbsorptionRate, services.TreeAgeYears(tree.PlantedAt))
+		}
 
 		credit := models.CarbonCredit{
-			ID:        uuid.New(),
-			UserID:    tree.PlanterID,
-			TreeID:    tree.ID,
-			Amount:    creditsIssued,
-			Type:      "verification_reward",
-			CreatedAt: time.Now(),
+			ID:              uuid.New(),
+			UserID:          tree.PlanterID,
+			TreeID:          tree.ID,
+			Amount:          creditsIssued,
+			Type:            "verification_reward",
+			TransactionHash: chainTxHash,
+			Tradeable:       true,
+			CreatedAt:       time.Now(),
 		}
 		if err := tx.Create(&credit).Error; err != nil {
 			tx.Rollback()
+			if isUniqueViolation(err) {
+				c.JSON(http.StatusConflict, gin.H{"error": "This tree has already been credited"})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to issue carbon credits"})
 			return
 		}
@@ -233,9 +291,9 @@ func VerifyTree(c *gin.Context) {
 		tx.Model(&tree).Update("credits_available", creditsIssued)
 
 		// Record Credit Event in Ledger
-		RecordCreditEvent(tree.OwnerWallet, tree.TreeID, "EARNED", creditsIssued, creditsIssued, tree.ID.String())
+		RecordCreditEventTx(tx, tree.OwnerWallet, tree.TreeID, "EARNED", creditsIssued, creditsIssued, tree.ID.String())
 
-		LogActivity("TREE_VERIFIED", tree.TreeID, nil, "", fmt.Sprintf("Tree %s verified by administrator", tree.TreeID))
+		LogActivityTx(tx, "TREE_VERIFIED", tree.TreeID, nil, verifierWallet, fmt.Sprintf("Tree %s verified by administrator", tree.TreeID))
 
 		// Check if this tree is a replacement for a debt
 		if tree.IsReplacement && tree.ReplantedDebtID != nil {
@@ -264,7 +322,7 @@ func VerifyTree(c *gin.Context) {
 						Update("tradeable", true)
 
 					// Log Debt Clear
-					LogActivity("DEBT_CLEARED", debt.OriginalTreeID, &debt.ID, debt.OwnerWallet, "Replantation debt cleared automatically after tree verification")
+					LogActivityTx(tx, "DEBT_CLEARED", debt.OriginalTreeID, &debt.ID, debt.OwnerWallet, "Replantation debt cleared automatically after tree verification")
 
 					// Generate Certificate
 					certID := fmt.Sprintf("CERT-%d-%s", time.Now().Unix(), uuid.New().String()[:4])
@@ -295,8 +353,9 @@ func VerifyTree(c *gin.Context) {
 
 	tx.Commit()
 
-	// Trigger NFT mint log for future implementation
-	log.Printf("NFT_PENDING: Tree %s verified. Minting process initiated by %s", tree.TreeID, verifierID)
+	// The NFT itself was minted when the planter registered the tree; this
+	// step records the verifier's decision and issues the credits.
+	log.Printf("CHAIN_OK: tree %s verified by %s; carbon credits recorded off-chain", tree.TreeID, verifierID)
 
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Tree %s verified successfully", tree.TreeID), "tree": tree, "tx_hash": input.TxHash})
 }

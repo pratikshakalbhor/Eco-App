@@ -3,7 +3,9 @@ package controllers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"math"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +14,7 @@ import (
 	"ecochain-backend/models"
 	"ecochain-backend/services"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -175,11 +178,16 @@ func TestGetUserCarbonCredits_EmptyUserHasZeroBalance(t *testing.T) {
 	}
 }
 
-const testBurnTxHash = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
 // ─────────────────────────────────────────────────
 // BurnCarbonCredits
 // ─────────────────────────────────────────────────
+
+func stubBurnDecoder(t *testing.T, fn func(txHash string) (*services.CreditBurn, error)) {
+	t.Helper()
+	original := services.CreditBurnDecoder
+	services.CreditBurnDecoder = fn
+	t.Cleanup(func() { services.CreditBurnDecoder = original })
+}
 
 func seedBurnableCredits(t *testing.T, db *gorm.DB, user models.User, amount float64, tradeable bool) {
 	t.Helper()
@@ -203,7 +211,7 @@ func TestBurnCarbonCredits_RecordsNegativeLedgerEntry(t *testing.T) {
 
 	w := postJSON(t, r, "/api/credits/burn", map[string]interface{}{
 		"amount":  2.0,
-		"tx_hash": testBurnTxHash,
+		"tx_hash": testTxHash,
 	})
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
@@ -232,7 +240,7 @@ func TestBurnCarbonCredits_RejectsInsufficientBalance(t *testing.T) {
 
 	w := postJSON(t, r, "/api/credits/burn", map[string]interface{}{
 		"amount":  2.0,
-		"tx_hash": testBurnTxHash,
+		"tx_hash": testTxHash,
 	})
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
@@ -250,7 +258,7 @@ func TestBurnCarbonCredits_ExcludesFrozenCredits(t *testing.T) {
 
 	w := postJSON(t, r, "/api/credits/burn", map[string]interface{}{
 		"amount":  1.0,
-		"tx_hash": testBurnTxHash,
+		"tx_hash": testTxHash,
 	})
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 when all credits are frozen, got %d: %s", w.Code, w.Body.String())
@@ -267,16 +275,120 @@ func TestBurnCarbonCredits_RejectsReplayedTransactionHash(t *testing.T) {
 	r.POST("/api/credits/burn", BurnCarbonCredits)
 
 	first := postJSON(t, r, "/api/credits/burn", map[string]interface{}{
-		"amount": 2.0, "tx_hash": testBurnTxHash,
+		"amount": 2.0, "tx_hash": testTxHash,
 	})
 	if first.Code != http.StatusOK {
 		t.Fatalf("expected the first burn to succeed, got %d: %s", first.Code, first.Body.String())
 	}
 
 	second := postJSON(t, r, "/api/credits/burn", map[string]interface{}{
-		"amount": 2.0, "tx_hash": testBurnTxHash,
+		"amount": 2.0, "tx_hash": testTxHash,
 	})
 	if second.Code != http.StatusConflict {
 		t.Fatalf("expected 409 for a replayed burn tx, got %d: %s", second.Code, second.Body.String())
+	}
+}
+
+func TestBurnCarbonCredits_VerifiesTheOnChainBurnWhenRPCConfigured(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("RPC_URL", "https://example.invalid")
+	db := setupTestDB(t)
+	user := createTestUser(t, db, "0x00000000000000000000000000000000000000bb", "user")
+	seedBurnableCredits(t, db, user, 10, true)
+
+	validBurn := &services.CreditBurn{
+		Token:  common.HexToAddress("0x00000000000000000000000000000000000000cc"),
+		From:   common.HexToAddress(user.WalletAddress),
+		Amount: big.NewInt(2_000_000_000_000_000_000),
+	}
+	stubBurnDecoder(t, func(string) (*services.CreditBurn, error) { return validBurn, nil })
+
+	r := setupIntegrityRouter(user.ID, user.WalletAddress)
+	r.POST("/api/credits/burn", BurnCarbonCredits)
+
+	w := postJSON(t, r, "/api/credits/burn", map[string]interface{}{
+		"amount": 2.0, "tx_hash": testTxHash,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for a matching burn, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBurnCarbonCredits_RejectsBurnFromAnotherWallet(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("RPC_URL", "https://example.invalid")
+	db := setupTestDB(t)
+	user := createTestUser(t, db, "0x00000000000000000000000000000000000000bb", "user")
+	seedBurnableCredits(t, db, user, 10, true)
+
+	stubBurnDecoder(t, func(string) (*services.CreditBurn, error) {
+		return &services.CreditBurn{
+			From:   common.HexToAddress("0x00000000000000000000000000000000000000dd"),
+			Amount: big.NewInt(2_000_000_000_000_000_000),
+		}, nil
+	})
+
+	r := setupIntegrityRouter(user.ID, user.WalletAddress)
+	r.POST("/api/credits/burn", BurnCarbonCredits)
+
+	w := postJSON(t, r, "/api/credits/burn", map[string]interface{}{
+		"amount": 2.0, "tx_hash": testTxHash,
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for another wallet's burn, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var burned int64
+	db.Model(&models.CarbonCredit{}).Where("type = ?", "burned").Count(&burned)
+	if burned != 0 {
+		t.Errorf("expected no burn row, got %d", burned)
+	}
+}
+
+func TestBurnCarbonCredits_RejectsAmountMismatch(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("RPC_URL", "https://example.invalid")
+	db := setupTestDB(t)
+	user := createTestUser(t, db, "0x00000000000000000000000000000000000000bb", "user")
+	seedBurnableCredits(t, db, user, 10, true)
+
+	// The wallet burned 1 credit but the request retires 2.
+	stubBurnDecoder(t, func(string) (*services.CreditBurn, error) {
+		return &services.CreditBurn{
+			From:   common.HexToAddress(user.WalletAddress),
+			Amount: big.NewInt(1_000_000_000_000_000_000),
+		}, nil
+	})
+
+	r := setupIntegrityRouter(user.ID, user.WalletAddress)
+	r.POST("/api/credits/burn", BurnCarbonCredits)
+
+	w := postJSON(t, r, "/api/credits/burn", map[string]interface{}{
+		"amount": 2.0, "tx_hash": testTxHash,
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for an amount mismatch, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBurnCarbonCredits_RejectsUnconfirmedTransaction(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("RPC_URL", "https://example.invalid")
+	db := setupTestDB(t)
+	user := createTestUser(t, db, "0x00000000000000000000000000000000000000bb", "user")
+	seedBurnableCredits(t, db, user, 10, true)
+
+	stubBurnDecoder(t, func(string) (*services.CreditBurn, error) {
+		return nil, errors.New("no EcoToken burn (Transfer to the zero address) found in transaction")
+	})
+
+	r := setupIntegrityRouter(user.ID, user.WalletAddress)
+	r.POST("/api/credits/burn", BurnCarbonCredits)
+
+	w := postJSON(t, r, "/api/credits/burn", map[string]interface{}{
+		"amount": 2.0, "tx_hash": testTxHash,
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for a non-burn transaction, got %d: %s", w.Code, w.Body.String())
 	}
 }

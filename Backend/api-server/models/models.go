@@ -159,6 +159,9 @@ type ReplantationDebt struct {
 	// Status: PENDING | IN_PROGRESS | CLEARED
 	Status        string     `gorm:"default:'PENDING'" json:"status"`
 	CertificateID string     `json:"certificate_id"`
+	// TransactionHash is the on-chain confirmCut transaction that created
+	// this debt and froze the debtor's credits. Empty for legacy rows.
+	TransactionHash string     `json:"transaction_hash"`
 	ClearedAt       *time.Time `json:"cleared_at"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
@@ -175,6 +178,9 @@ type ReplacementTree struct {
 	// several debts with one replacement tree.
 	TreeID   string    `gorm:"not null;uniqueIndex:uni_replacement_trees_tree_id" json:"tree_id"`
 	LinkedAt time.Time `json:"linked_at"`
+	// TransactionHash is the on-chain markReplanted transaction that linked
+	// the tree to the debt. Empty for legacy rows.
+	TransactionHash string `json:"transaction_hash"`
 }
 
 // CompensationRecord — legacy table, retained for DB compatibility

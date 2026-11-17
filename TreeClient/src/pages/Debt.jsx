@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useNavigate } from 'react-router-dom';
-import { findDebtIdForOriginalTree, linkReplacementTreeOnChain } from '../utils/web3Service';
+import { findDebtIdForOriginalTree, markReplantedOnChain } from '../utils/web3Service';
 
 const cleanImageUrl = (url) => (url && typeof url === 'string' && !url.startsWith('blob:') ? url : '/placeholder-tree.jpg');
 
@@ -56,12 +56,17 @@ export default function Debt() {
         throw new Error("No matching replantation debt found on-chain for tree " + originalTreeId);
       }
 
-      // 3. Link replacement tree on-chain
-      console.log(`Linking replacement token ${replacementTokenId} to debt ${onChainDebtId} on-chain`);
-      await linkReplacementTreeOnChain(onChainDebtId, replacementTokenId);
+      // 3. Link the replacement tree on-chain through EcoChainTree. The
+      //    registry only trusts the tree contract, so markReplanted is the
+      //    only path; the verifier wallet must hold VERIFIER_ROLE.
+      console.log(`Marking replacement token ${replacementTokenId} as replanted for tree ${origTokenId}`);
+      const { txHash } = await markReplantedOnChain(replacementTokenId, origTokenId);
 
-      // 4. Update the backend GORM database
-      await axios.post(`${API_URL}/api/debt/${debtDbId}/link-tree`, { tree_id: replacementTreeId });
+      // 4. Update the backend GORM database with the on-chain tx hash.
+      await axios.post(`${API_URL}/api/debt/${debtDbId}/link-tree`, {
+        tree_id: replacementTreeId,
+        tx_hash: txHash,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['my-debts']);

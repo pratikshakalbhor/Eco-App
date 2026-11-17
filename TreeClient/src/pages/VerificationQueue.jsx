@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
-import { verifyTreeOnChain, confirmTreeCutOnChain, createReplantationDebtOnChain } from '../utils/web3Service';
+import { verifyTreeOnChain, reportTreeCutOnChain, confirmTreeCutOnChain } from '../utils/web3Service';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const cleanImageUrl = (url) => (url && typeof url === 'string' && !url.startsWith('blob:') ? url : '/placeholder-tree.jpg');
@@ -42,7 +42,7 @@ export default function UnifiedVerificationHub() {
   });
 
   // Fetch Cut Reports
-  const { data: cutReports = [], isLoading: reportsLoading } = useQuery({
+  const { data: cutReports = [] } = useQuery({
     queryKey: ['cut-reports'],
     queryFn: async () => {
       const { data } = await axios.get(`${API_URL}/api/trees/cut-reports?status=PENDING`);
@@ -52,18 +52,21 @@ export default function UnifiedVerificationHub() {
   });
 
   const verifyTreeMutation = useMutation({
-    mutationFn: async ({ id, status, notes, tokenId, absorptionRate }) => {
+    mutationFn: async ({ id, status, notes, tokenId, absorptionRate, plantedAt }) => {
       // 1. If verifying, do blockchain transaction first and wait for confirmation
       let verificationTxHash;
       if (status === 'VERIFIED' && tokenId) {
         try {
           const carbonScoreInt = Math.round((absorptionRate || 18.5) * 100);
+          const plantedAtSeconds = Math.floor(
+            new Date(plantedAt || Date.now()).getTime() / 1000
+          );
           console.log(`Verifying Tree on-chain. Token: ${tokenId}, Carbon Score (Int): ${carbonScoreInt}`);
-          const result = await verifyTreeOnChain(tokenId, carbonScoreInt);
+          const result = await verifyTreeOnChain(tokenId, carbonScoreInt, plantedAtSeconds);
           verificationTxHash = result.txHash;
         } catch (err) {
           console.error("Blockchain verification failed:", err);
-          throw new Error("Blockchain verification failed: " + err.message);
+          throw new Error(err.message);
         }
       }
 
@@ -79,24 +82,33 @@ export default function UnifiedVerificationHub() {
 
   const confirmCutMutation = useMutation({
     mutationFn: async ({ treeId, approved, tokenId, ownerWallet, originalDate }) => {
+      // The backend requires the confirmCut transaction hash: it decodes the
+      // TreeCutConfirmed + DebtCreated + Frozen events before touching the DB.
+      let confirmationTxHash = null;
       if (approved && tokenId) {
         try {
           // Calculate replacements needed on-chain: max(3, ceil(yearsLived / 2))
           const yearsLived = (Date.now() - new Date(originalDate).getTime()) / (1000 * 60 * 60 * 24 * 365);
           const replacementsNeeded = Math.max(3, Math.ceil(yearsLived / 2));
 
-          console.log(`Confirming tree cut on-chain. Token: ${tokenId}`);
-          await confirmTreeCutOnChain(tokenId);
+          // confirmCut only accepts a tree in CUT_REPORTED, so report first.
+          console.log(`Reporting tree cut on-chain. Token: ${tokenId}`);
+          await reportTreeCutOnChain(tokenId);
 
-          console.log(`Registering replantation debt on-chain. Token: ${tokenId}, Debtor: ${ownerWallet}, Replacements: ${replacementsNeeded}`);
-          await createReplantationDebtOnChain(tokenId, ownerWallet, replacementsNeeded);
+          console.log(`Confirming tree cut on-chain. Token: ${tokenId}, replacements: ${replacementsNeeded}`);
+          const result = await confirmTreeCutOnChain(tokenId, replacementsNeeded);
+          confirmationTxHash = result.txHash;
+
+          console.log(`Replantation debt created on-chain. Token: ${tokenId}, Debtor: ${ownerWallet}, Replacements: ${replacementsNeeded}`);
         } catch (err) {
           console.error("Blockchain cut confirmation failed:", err);
-          throw new Error("Blockchain cut confirmation failed: " + err.message);
+          throw new Error(err.message);
         }
       }
       const endpoint = approved ? 'confirm' : 'reject';
-      await axios.post(`${API_URL}/api/trees/${treeId}/cut/${endpoint}`);
+      await axios.post(`${API_URL}/api/trees/${treeId}/cut/${endpoint}`, {
+        tx_hash: confirmationTxHash,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['cut-reports']);
@@ -305,7 +317,8 @@ export default function UnifiedVerificationHub() {
                                                       id: item.id, 
                                                       status: 'VERIFIED', 
                                                       tokenId: item.blockchain_token_id,
-                                                      absorptionRate: item.carbon_absorption_rate
+                                                      absorptionRate: item.carbon_absorption_rate,
+                                                      plantedAt: item.planted_at || item.created_at
                                                     })}
                                                     className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
                                                     title="Approve"
@@ -447,7 +460,8 @@ export default function UnifiedVerificationHub() {
                                               id: selectedAsset.id, 
                                               status: 'VERIFIED',
                                               tokenId: selectedAsset.blockchain_token_id,
-                                              absorptionRate: selectedAsset.carbon_absorption_rate
+                                              absorptionRate: selectedAsset.carbon_absorption_rate,
+                                              plantedAt: selectedAsset.planted_at || selectedAsset.created_at
                                             })}
                                             className="flex-1 h-16 bg-emerald-600 hover:bg-emerald-700 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-emerald-200"
                                         >

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import API_URL from "../utils/config.js";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import {
   Leaf, TreePine, Award, ArrowUpRight, ArrowDownRight, Sprout,
@@ -10,14 +10,14 @@ import {
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { getEcoTokenBalance, getCarbonCreditBalance, isSepoliaNetwork, switchToSepolia } from '../utils/web3Service';
-import { useAuth } from '../hooks/useAuth';
+import { getEcoTokenBalance, isEcoTokenFrozen, isSepoliaNetwork, switchToSepolia, burnCreditsOnChain } from '../utils/web3Service';
+import { useAuth } from "../hooks/useAuth";
 
 // How carbon credits work, explained simply.
 const HOW_IT_WORKS = [
   { icon: TreePine, title: 'Your trees absorb CO₂', text: 'Every verified tree captures carbon dioxide (CO₂) from the air as it grows.' },
   { icon: Award, title: 'Credits are issued', text: 'Each tonne of CO₂ your trees offset becomes 1 carbon credit (ECO token) you can use or trade.' },
-  { icon: Coins, title: 'Use or sell your credits', text: 'Burn credits to prove you offset emissions, or sell them in the marketplace to earn.' },
+  { icon: Coins, title: 'Use or sell your credits', text: 'Retire credits (burn them) to claim an offset, or sell them in the marketplace to earn.' },
 ];
 
 const LEDGER_TYPE_CONFIG = {
@@ -28,8 +28,9 @@ const LEDGER_TYPE_CONFIG = {
 
 export default function CarbonCredits() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [onSepolia, setOnSepolia] = useState(true);
-  const [balances, setBalances] = useState({ eco: '0.00', carbonCredit: '0.00' });
+  const [balances, setBalances] = useState({ eco: '0.00', frozen: false });
   const [ledgerFilter, setLedgerFilter] = useState('all');
   const [showBurn, setShowBurn] = useState(false);
   const [showOnChain, setShowOnChain] = useState(false);
@@ -68,11 +69,11 @@ export default function CarbonCredits() {
       setOnSepolia(isSep);
       if (isSep) {
         try {
-          const [eco, carbonCredit] = await Promise.all([
+          const [eco, frozen] = await Promise.all([
             getEcoTokenBalance(user.wallet_address).catch(() => '0.00'),
-            getCarbonCreditBalance(user.wallet_address).catch(() => '0.00'),
+            isEcoTokenFrozen(user.wallet_address).catch(() => false),
           ]);
-          setBalances({ eco, carbonCredit });
+          setBalances({ eco, frozen: Boolean(frozen) });
         } catch (err) { console.error(err); }
       }
     };
@@ -82,14 +83,14 @@ export default function CarbonCredits() {
   }, [user?.wallet_address]);
 
   const {
-    credits_earned = 0, credits_lost = 0,
+    credits_earned = 0,
     environmental_debt = 0, compensation_required = false,
     active_trees = 0, cut_trees = 0, replacement_trees = 0,
     co2_stats = {}, carbon_balance = 0, sustainability_score = 0,
   } = data || {};
 
   const netAvailable = Math.max(0, (Number(balances.eco) || 0)).toFixed(2);
-  const carbonCreditBalance = Math.max(0, (Number(balances.carbonCredit) || 0)).toFixed(2);
+  const ledgerBalance = Math.max(0, (Number(carbon_balance) || 0)).toFixed(2);
   const totalCO2 = (co2_stats.total_absorbed || 0).toFixed(2);
   const used = history.filter(h => h.type === 'compensation' || h.type === 'penalty').reduce((s, h) => s + Math.abs(h.amount || 0), 0);
 
@@ -169,18 +170,25 @@ export default function CarbonCredits() {
           <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex flex-col sm:flex-row sm:items-center gap-8">
               <div>
-                <p className="text-emerald-300 text-sm font-medium">ECO Token Balance (on-chain)</p>
+                <p className="text-emerald-300 text-sm font-medium">On-chain balance (EcoToken)</p>
                 <p className="text-4xl font-bold mt-1">{netAvailable} <span className="text-lg text-emerald-300">ECO</span></p>
-                <p className="text-xs text-white/50 mt-1">1 ECO token = 1 tonne of CO₂ offset</p>
+                <p className="text-xs text-white/50 mt-1">Read live from <span className="font-mono">EcoToken.balanceOf()</span> · 18 decimals</p>
               </div>
               <div className="sm:border-l sm:border-emerald-800/60 sm:pl-8">
-                <p className="text-emerald-300 text-sm font-medium">Carbon Credit Balance (on-chain)</p>
-                <p className="text-4xl font-bold mt-1">{carbonCreditBalance} <span className="text-lg text-emerald-300">CC</span></p>
-                <p className="text-xs text-white/50 mt-1">Verified on-chain carbon credits</p>
+                <p className="text-emerald-300 text-sm font-medium">Ledger balance (database)</p>
+                <p className="text-4xl font-bold mt-1">{ledgerBalance} <span className="text-lg text-emerald-300">t</span></p>
+                <p className="text-xs text-white/50 mt-1">Credits recorded in the EcoChain ledger</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-emerald-300 shrink-0">
-              <ShieldCheck className="w-4 h-4" /> Auditable on the blockchain
+            <div className="flex flex-col items-start gap-3 shrink-0">
+              {balances.frozen && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 border border-red-400/40 px-3 py-1 text-xs font-semibold text-red-200">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Wallet frozen — open replantation debt
+                </span>
+              )}
+              <div className="flex items-center gap-2 text-sm text-emerald-300">
+                <ShieldCheck className="w-4 h-4" /> Auditable on the blockchain
+              </div>
             </div>
           </div>
         </div>
@@ -194,7 +202,10 @@ export default function CarbonCredits() {
             </span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showBurn ? 'rotate-180' : ''}`} />
           </button>
-          {showBurn && <BurnForm onDone={() => { setShowBurn(false); }} />}
+          {showBurn && <BurnForm onDone={() => {
+          queryClient.invalidateQueries({ queryKey: ['carbon-credits'] });
+          queryClient.invalidateQueries({ queryKey: ['credit-history'] });
+        }} />}
         </div>
 
         {/* Ledger history */}
@@ -306,17 +317,29 @@ function BurnForm({ onDone }) {
     if (!amount || isNaN(val) || val <= 0) { setError('Enter a valid amount'); return; }
     setLoading(true); setError(''); setResult(null);
     try {
+      // If the user pasted a hash of an existing burn, verify that. Otherwise
+      // perform the burn on-chain now so the retirement has real backing.
+      let hash = txHash.trim();
+      if (!hash) {
+        const burned = await burnCreditsOnChain(val);
+        hash = burned.txHash;
+        setTxHash(hash);
+      }
+
       const token = localStorage.getItem('eco_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const { data } = await axios.post(`${API_URL}/api/credits/burn`, {
         amount: val,
         purpose: purpose || 'Carbon Offset',
-        tx_hash: txHash,
+        tx_hash: hash,
       }, { headers });
       setResult(data);
       setAmount(''); setPurpose(''); setTxHash('');
+      onDone?.();
     } catch (err) {
-      setError(err?.response?.data?.error || 'Could not complete. Check your available balance.');
+      // Wallet/contract errors already carry a readable message; API errors
+      // arrive as { error }.
+      setError(err?.response?.data?.error || err?.message || 'Could not complete. Check your available balance.');
     } finally {
       setLoading(false);
     }
@@ -337,12 +360,12 @@ function BurnForm({ onDone }) {
             value={purpose} onChange={e => setPurpose(e.target.value)}
             className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
         </div>
-        <input type="text" placeholder="On-chain tx hash (optional)" value={txHash} onChange={e => setTxHash(e.target.value)}
+        <input type="text" placeholder="Existing burn tx hash (optional — leave blank to burn now)" value={txHash} onChange={e => setTxHash(e.target.value)}
           className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-mono text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
         {error && <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-sm font-medium text-rose-700">{error}</div>}
         <button onClick={handleBurn} disabled={loading || !amount}
           className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
-          {loading ? 'Processing...' : 'Offset Emissions'}
+          {loading ? 'Processing...' : (txHash.trim() ? 'Retire Credits' : 'Burn & Retire Credits')}
         </button>
       </div>
       <div className="space-y-4">
@@ -352,7 +375,7 @@ function BurnForm({ onDone }) {
             <p className="text-3xl font-bold text-emerald-700">{result.amount_burned} tCO₂e</p>
             <p className="text-sm text-emerald-600">{result.purpose}</p>
             {result.tx_hash && (
-              <a href={`https://sepolia.etherscan.io/tx/${result.tx_hash}`} target="_blank" rel="noreferrer"
+              <a href={`${import.meta.env.VITE_EXPLORER_URL || 'https://sepolia.etherscan.io'}/tx/${result.tx_hash}`} target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-emerald-600 hover:underline">View proof on Etherscan</a>
             )}
           </div>
@@ -360,9 +383,9 @@ function BurnForm({ onDone }) {
           <div className="bg-slate-50 rounded-2xl p-6 border border-dashed border-slate-200">
             <h4 className="text-sm font-semibold text-slate-700 mb-3">What happens when you offset?</h4>
             <div className="space-y-2 text-sm text-slate-500">
-              <p>1. Enter how many credits you want to use to offset CO₂.</p>
-              <p>2. Each credit permanently offsets 1 tonne of CO₂.</p>
-              <p>3. A permanent, verifiable record is stored on the blockchain.</p>
+              <p>1. Enter how many credits you want to retire.</p>
+              <p>2. Your wallet burns that many ECO credits on-chain (EcoToken.burn).</p>
+              <p>3. The backend checks the Transfer-to-zero event in that transaction (when RPC_URL is configured) before recording the retirement.</p>
             </div>
             <div className="p-3 mt-3 bg-orange-50 border border-orange-100 rounded-xl">
               <p className="text-xs font-semibold text-orange-700">Please note: this is irreversible. Credits used cannot be recovered.</p>

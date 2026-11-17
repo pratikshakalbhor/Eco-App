@@ -13,9 +13,8 @@ import { Input } from "../components/ui/Input";
 import { Label } from "../components/ui/Label";
 import { Badge } from "../components/ui/Badge";
 import axios from "axios";
-import { registerTreeOnChain, isSepoliaNetwork, connectWallet } from "../utils/web3Service";
+import { registerTreeOnChain } from "../utils/web3Service";
 import { uploadToIPFS } from "../utils/ipfsService";
-import { useAuth } from "../hooks/useAuth";
 import { isPositiveNumber, isWithinRange, isNotFutureDate, isRequiredNonEmpty } from "../utils/validation";
 
 const COMMON_SPECIES = [
@@ -37,7 +36,6 @@ const STEPS = [
 export default function RedesignedPlantTree() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const queryParams = new URLSearchParams(location.search);
   const debtId = queryParams.get('debt_id');
   const isReplacementParam = queryParams.get('is_replacement') === 'true';
@@ -183,14 +181,15 @@ export default function RedesignedPlantTree() {
       let txHash = "";
       try {
         const metaURI = `ipfs://${formData.ipfs_hash}`;
-        const walletAddress = user?.wallet_address || (await connectWallet()).address;
-        const bcResult = await registerTreeOnChain(walletAddress, formData.ipfs_hash, metaURI);
+        const bcResult = await registerTreeOnChain(formData.ipfs_hash, metaURI);
         tokenId = bcResult.tokenId;
         txHash = bcResult.txHash;
         setBlockchainData({ tokenId, txHash });
       } catch (bcErr) {
         console.error("Blockchain Registration Failed:", bcErr);
-        throw new Error("We couldn't finish the secure record for your tree. Please make sure you have Sepolia ETH and confirm the request in MetaMask.");
+        // Never mask a contract revert (e.g. a duplicate IPFS hash or a
+        // missing role) as a gas problem: show the mapped reason.
+        throw new Error(bcErr?.message || "We could not record this tree on-chain. Please try again.");
       }
 
       // 2. Save to Backend with TokenID

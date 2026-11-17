@@ -49,6 +49,145 @@ func countCredits(t *testing.T, db *gorm.DB, treeID uuid.UUID, creditType string
 	return n
 }
 
+// ─────────────────────────────────────────────────
+// VerifyTree
+// ─────────────────────────────────────────────────
+
+func TestVerifyTree_IssuesCreditsOnce(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("RPC_URL", "") // no chain endpoint configured -> no receipt check
+	db := setupTestDB(t)
+
+	planter := createTestUser(t, db, "0xplanter", "user")
+	tree := createTestTree(t, db, planter.ID, "PENDING_VERIFICATION", "oak")
+
+	verifierID := uuid.New()
+	r := setupIntegrityRouter(verifierID, "0xverifier")
+	r.POST("/api/trees/:id/verify", VerifyTree)
+
+	w := postJSON(t, r, "/api/trees/"+tree.ID.String()+"/verify", map[string]interface{}{
+		"status": "VERIFIED",
+		"notes":  "looks healthy",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if n := countCredits(t, db, tree.ID, "verification_reward"); n != 1 {
+		t.Fatalf("expected exactly 1 credit row, got %d", n)
+	}
+
+	var reloaded models.Tree
+	db.First(&reloaded, "id = ?", tree.ID)
+	if reloaded.Status != "VERIFIED" {
+		t.Errorf("expected status VERIFIED, got %s", reloaded.Status)
+	}
+}
+
+func TestVerifyTree_SecondCallReturns409AndIssuesNoSecondCredit(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("RPC_URL", "")
+	db := setupTestDB(t)
+
+	planter := createTestUser(t, db, "0xplanter", "user")
+	tree := createTestTree(t, db, planter.ID, "PENDING_VERIFICATION", "oak")
+
+	r := setupIntegrityRouter(uuid.New(), "0xverifier")
+	r.POST("/api/trees/:id/verify", VerifyTree)
+
+	first := postJSON(t, r, "/api/trees/"+tree.ID.String()+"/verify", map[string]interface{}{
+		"status": "VERIFIED",
+	})
+	if first.Code != http.StatusOK {
+		t.Fatalf("expected 200 on the first verification, got %d: %s", first.Code, first.Body.String())
+	}
+	if n := countCredits(t, db, tree.ID, "verification_reward"); n != 1 {
+		t.Fatalf("expected 1 credit row after the first verification, got %d", n)
+	}
+
+	// The second verification must be refused, and must not mint again.
+	second := postJSON(t, r, "/api/trees/"+tree.ID.String()+"/verify", map[string]interface{}{
+		"status": "VERIFIED",
+	})
+	if second.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for a second verification, got %d: %s", second.Code, second.Body.String())
+	}
+	if n := countCredits(t, db, tree.ID, "verification_reward"); n != 1 {
+		t.Errorf("expected still exactly 1 credit row after the second call, got %d", n)
+	}
+
+	// XP must only have been awarded once.
+	var planterAfter models.User
+	db.First(&planterAfter, "id = ?", planter.ID)
+	if planterAfter.XPPoints != 100 {
+		t.Errorf("expected 100 XP, got %d", planterAfter.XPPoints)
+	}
+}
+
+func TestVerifyTree_RejectsAlreadyVerifiedTree(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("RPC_URL", "")
+	db := setupTestDB(t)
+
+	planter := createTestUser(t, db, "0xplanter", "user")
+	tree := createTestTree(t, db, planter.ID, "VERIFIED", "oak")
+
+	r := setupIntegrityRouter(uuid.New(), "0xverifier")
+	r.POST("/api/trees/:id/verify", VerifyTree)
+
+	w := postJSON(t, r, "/api/trees/"+tree.ID.String()+"/verify", map[string]interface{}{
+		"status": "VERIFIED",
+	})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for an already verified tree, got %d: %s", w.Code, w.Body.String())
+	}
+	if n := countCredits(t, db, tree.ID, "verification_reward"); n != 0 {
+		t.Errorf("expected no credit rows, got %d", n)
+	}
+}
+
+func TestVerifyTree_RequiresTxHashWhenRpcConfigured(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("RPC_URL", "https://example.invalid") // configured, so a tx hash is mandatory
+	db := setupTestDB(t)
+
+	planter := createTestUser(t, db, "0xplanter", "user")
+	tree := createTestTree(t, db, planter.ID, "PENDING_VERIFICATION", "oak")
+
+	r := setupIntegrityRouter(uuid.New(), "0xverifier")
+	r.POST("/api/trees/:id/verify", VerifyTree)
+
+	w := postJSON(t, r, "/api/trees/"+tree.ID.String()+"/verify", map[string]interface{}{
+		"status": "VERIFIED",
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 when tx_hash is missing, got %d: %s", w.Code, w.Body.String())
+	}
+	if n := countCredits(t, db, tree.ID, "verification_reward"); n != 0 {
+		t.Errorf("expected no credit rows, got %d", n)
+	}
+}
+
+func TestVerifyTree_RejectsUnknownStatus(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("RPC_URL", "")
+	db := setupTestDB(t)
+
+	planter := createTestUser(t, db, "0xplanter", "user")
+	tree := createTestTree(t, db, planter.ID, "PENDING_VERIFICATION", "oak")
+
+	r := setupIntegrityRouter(uuid.New(), "0xverifier")
+	r.POST("/api/trees/:id/verify", VerifyTree)
+
+	w := postJSON(t, r, "/api/trees/"+tree.ID.String()+"/verify", map[string]interface{}{
+		"status": "MAYBE",
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for an unknown status, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// ─────────────────────────────────────────────────
 // BurnCarbonCredits
 // ─────────────────────────────────────────────────
 
