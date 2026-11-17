@@ -6,30 +6,58 @@ import {
   Activity, Info, AlertCircle, CheckCircle2 
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { fetchEthInrRate, payWithMetaMask } from '@/utils/payment';
+import { fetchPaymentConfig, payWithMetaMask } from '@/utils/payment';
 import axios from 'axios';
 
 export default function BuyModal({ listing, onClose, onSuccess }) {
   const [amount, setAmount] = useState('');
-  const [ethRate, setEthRate] = useState(0);
+  const [paymentConfig, setPaymentConfig] = useState(null);
+  const [configError, setConfigError] = useState(null);
   const [isPaying, setIsPaying] = useState(false);
   const [error, setError] = useState(null);
   const [step, setStep] = useState('input'); // input | paying | success
 
   const available = listing.credits_total - listing.credits_sold;
   const subtotal = (parseFloat(amount) || 0) * listing.price_per_credit;
-  const fee = subtotal * 0.02;
-  const total = subtotal + fee;
+
+  // The platform fee is deducted from the buyer's payment, not added on top
+  // of it: the backend requires exactly `credits * price_per_credit` to be
+  // transferred and then takes its cut from that amount.
+  const feePercent = paymentConfig ? paymentConfig.platformFeePercent : 0;
+  const fee = subtotal * (feePercent / 100);
+  const total = subtotal;
+  const sellerReceived = total - fee;
 
   useEffect(() => {
-    fetchEthInrRate().then(setEthRate);
+    let cancelled = false;
+
+    fetchPaymentConfig()
+      .then((config) => {
+        if (cancelled) return;
+        setPaymentConfig(config);
+        setConfigError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setPaymentConfig(null);
+        setConfigError(err.message || 'Could not load the payment configuration.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const ethEquivalent = ethRate ? (total / ethRate).toFixed(8) : '...';
+  const ethEquivalent = paymentConfig ? (total / paymentConfig.ethInrRate).toFixed(8) : '...';
 
   const handleBuy = async () => {
     if (!amount || parseFloat(amount) <= 0 || parseFloat(amount) > available) {
         setError("Invalid credit amount");
+        return;
+    }
+
+    if (!paymentConfig) {
+        setError(configError || "The marketplace payment configuration is not available yet. Please try again in a moment.");
         return;
     }
 
@@ -38,14 +66,16 @@ export default function BuyModal({ listing, onClose, onSuccess }) {
     setStep('paying');
 
     try {
-        const paymentResult = await payWithMetaMask(import.meta.env.VITE_PLATFORM_WALLET, total);
-        
+        const paymentResult = await payWithMetaMask({
+            recipient: paymentConfig.platformWallet,
+            inrAmount: total,
+            ethInrRate: paymentConfig.ethInrRate,
+        });
+
         await axios.post(`${API_URL}/api/marketplace/buy`, {
             listing_id: listing.id,
             amount_to_buy: parseFloat(amount),
             tx_hash: paymentResult.txHash,
-            eth_amount: parseFloat(paymentResult.ethAmount),
-            eth_rate_at_time: paymentResult.ethRate
         });
 
         setStep('success');
@@ -80,7 +110,7 @@ export default function BuyModal({ listing, onClose, onSuccess }) {
                     </div>
                     <div className="space-y-2">
                         <h2 className="text-3xl font-black text-slate-900">Purchase Successful!</h2>
-                        <p className="text-slate-500 font-medium">Your credits are being transferred to your wallet.</p>
+                        <p className="text-slate-500 font-medium">Your credits have been credited to your EcoChain account.</p>
                     </div>
                 </div>
             ) : (
@@ -120,9 +150,13 @@ export default function BuyModal({ listing, onClose, onSuccess }) {
                             <div className="flex justify-between items-center tabular-nums">
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-xs font-bold text-slate-500 uppercase">Platform Fee</span>
-                                    <Info className="w-3 h-3 text-slate-300" />
+                                    <Info className="w-3 h-3 text-slate-300" title={`${feePercent}% of the subtotal, deducted from the amount you pay.`} />
                                 </div>
                                 <span className="text-lg font-black text-slate-900">₹{fee.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center tabular-nums">
+                                <span className="text-xs font-bold text-slate-400 uppercase">Seller Receives</span>
+                                <span className="text-sm font-bold text-slate-500">₹{sellerReceived.toLocaleString()}</span>
                             </div>
                             <div className="h-px bg-slate-200" />
                             <div className="flex justify-between items-center">
@@ -134,6 +168,17 @@ export default function BuyModal({ listing, onClose, onSuccess }) {
                             </div>
                         </div>
                     </div>
+
+                    {configError && (
+                        <motion.div
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="bg-amber-50 p-4 rounded-2xl flex items-center gap-3 border border-amber-100"
+                        >
+                            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                            <p className="text-xs font-bold text-amber-700">{configError}</p>
+                        </motion.div>
+                    )}
 
                     {error && (
                         <motion.div 
@@ -147,9 +192,9 @@ export default function BuyModal({ listing, onClose, onSuccess }) {
                     )}
 
                     <div className="pt-2">
-                        <Button 
+                        <Button
                             onClick={handleBuy}
-                            disabled={isPaying || !amount}
+                            disabled={isPaying || !amount || !paymentConfig}
                             className="w-full h-16 rounded-2xl bg-slate-900 hover:bg-emerald-600 text-white font-black uppercase text-[11px] tracking-widest shadow-2xl shadow-slate-900/20 gap-3 flex items-center transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isPaying ? (

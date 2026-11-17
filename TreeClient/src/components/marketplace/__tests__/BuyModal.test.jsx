@@ -9,7 +9,11 @@ vi.mock('@/utils/payment', () => ({
     ethRate: 320000,
     inrAmount: 320,
   }),
-  fetchEthInrRate: vi.fn().mockResolvedValue(320000),
+  fetchPaymentConfig: vi.fn().mockResolvedValue({
+    platformWallet: '0x1111111111111111111111111111111111111111',
+    ethInrRate: 320000,
+    platformFeePercent: 2,
+  }),
 }));
 
 vi.mock('axios', () => ({
@@ -19,14 +23,17 @@ vi.mock('axios', () => ({
   },
 }));
 
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, initial, animate, transition, whileHover, ...props }) => (
-      <div {...props}>{children}</div>
-    ),
-  },
-  AnimatePresence: ({ children }) => <>{children}</>,
-}));
+vi.mock('framer-motion', () => {
+  const ignored = new Set(['initial', 'animate', 'transition', 'whileHover']);
+  const clean = (props) =>
+    Object.fromEntries(Object.entries(props).filter(([key]) => !ignored.has(key)));
+  return {
+    motion: {
+      div: ({ children, ...props }) => <div {...clean(props)}>{children}</div>,
+    },
+    AnimatePresence: ({ children }) => <>{children}</>,
+  };
+});
 
 describe('BuyModal Component', () => {
   const mockListing = {

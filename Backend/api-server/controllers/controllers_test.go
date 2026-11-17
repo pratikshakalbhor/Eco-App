@@ -3,15 +3,20 @@ package controllers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"ecochain-backend/config"
 	"ecochain-backend/models"
+	"ecochain-backend/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -24,7 +29,26 @@ const testSecret = "test-controller-secret"
 
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	// A file-backed SQLite database is used (one per test, in a temp dir) so
+	// that every connection in the pool — including the one a transaction
+	// pins — sees the same schema.
+	//
+	// Two alternatives were tried and rejected:
+	//   - ":memory:" gives every connection its own empty database, so any
+	//     query issued inside a transaction failed with "no such table".
+	//   - "mode=memory&cache=shared" shares the schema but makes the SQLite
+	//     driver's unlock_notify retry deadlock when two connections write
+	//     concurrently (SQLITE_LOCKED_SHAREDCACHE).
+	//
+	// WAL keeps readers out of the writer's way and the short busy timeout
+	// turns a concurrent write into a fast error instead of a stall.
+	dsn := fmt.Sprintf("file:%s?journal_mode=WAL&busy_timeout=500",
+		filepath.ToSlash(filepath.Join(t.TempDir(), "ecochain-test.db")))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		// Translate native unique-constraint violations onto
+		// gorm.ErrDuplicatedKey, matching production configuration.
+		TranslateError: true,
+	})
 	if err != nil {
 		t.Fatal("failed to open test db:", err)
 	}
@@ -35,6 +59,10 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.ActivityLog{}, &models.RestorationCertificate{},
 		&models.MarketplaceListing{}, &models.MarketplaceTransaction{}, &models.CreditLedger{},
 	)
+	sqlDB, err := db.DB()
+	if err == nil {
+		t.Cleanup(func() { sqlDB.Close() })
+	}
 	config.DB = db
 	return db
 }
@@ -573,8 +601,75 @@ func createTestListing(t *testing.T, db *gorm.DB, sellerWallet string, credits f
 	return listing
 }
 
+// ─────────────────────────────────────────────────
+// Marketplace payment test helpers
+// ─────────────────────────────────────────────────
+
+const testPlatformWallet = "0x000000000000000000000000000000000000dead"
+
+// setupMarketplaceEnv configures a well-formed marketplace environment:
+// a real platform wallet and a server-side ETH/INR rate.
+func setupMarketplaceEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("PLATFORM_WALLET", testPlatformWallet)
+	t.Setenv("ETH_INR_RATE", "320000")
+}
+
+// stubPaymentVerifier replaces the on-chain payment verification with a
+// deterministic stub so the controller can be exercised without an RPC node.
+func stubPaymentVerifier(t *testing.T, fn services.PaymentVerificationFunc) {
+	t.Helper()
+	original := services.PaymentVerifier
+	services.PaymentVerifier = fn
+	t.Cleanup(func() { services.PaymentVerifier = original })
+}
+
+// acceptPayment accepts any payment and records the arguments it was called
+// with so a test can assert how the server computed the requirement.
+func acceptPayment(t *testing.T) *paymentCall {
+	t.Helper()
+	call := &paymentCall{}
+	stubPaymentVerifier(t, func(txHash, toAddress, fromAddress string, minWei *big.Int) error {
+		call.TxHash = txHash
+		call.To = toAddress
+		call.From = fromAddress
+		call.MinWei = minWei
+		return nil
+	})
+	return call
+}
+
+type paymentCall struct {
+	TxHash string
+	To     string
+	From   string
+	MinWei *big.Int
+}
+
+func postBuy(t *testing.T, r *gin.Engine, body map[string]interface{}) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, _ := json.Marshal(body)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/marketplace/buy", bytes.NewBuffer(raw))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func countTransactions(t *testing.T, db *gorm.DB, listingID uuid.UUID) int64 {
+	t.Helper()
+	var n int64
+	db.Model(&models.MarketplaceTransaction{}).Where("listing_id = ?", listingID).Count(&n)
+	return n
+}
+
+// ─────────────────────────────────────────────────
+// Marketplace purchase tests
+// ─────────────────────────────────────────────────
+
 func TestBuyCredits_RejectsDuplicateTxHash(t *testing.T) {
 	setupTestEnv(t)
+	setupMarketplaceEnv(t)
 	db := setupTestDB(t)
 	r := setupRouter(db)
 	r.POST("/api/marketplace/buy", BuyCredits)
@@ -597,82 +692,258 @@ func TestBuyCredits_RejectsDuplicateTxHash(t *testing.T) {
 		t.Fatal("failed to seed transaction:", err)
 	}
 
-	body, _ := json.Marshal(map[string]interface{}{
-		"listing_id":   listing.ID.String(),
-		"amount_to_buy": 1,
-		"tx_hash":      txHash,
-	})
+	acceptPayment(t)
 
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/api/marketplace/buy", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":    listing.ID.String(),
+		"amount_to_buy": 1,
+		"tx_hash":       txHash,
+	})
 
 	if w.Code != http.StatusConflict {
 		t.Errorf("expected 409 for duplicate tx hash, got %d: %s", w.Code, w.Body.String())
 	}
-}
-
-func TestBuyCredits_SkipsVerificationWhenUnconfigured(t *testing.T) {
-	setupTestEnv(t)
-	// No PLATFORM_WALLET and no strict requirement -> dev mode should succeed.
-	t.Setenv("PLATFORM_WALLET", "")
-	t.Setenv("REQUIRE_CHAIN_VERIFICATION", "")
-
-	db := setupTestDB(t)
-	r := setupRouter(db)
-	r.POST("/api/marketplace/buy", BuyCredits)
-
-	listing := createTestListing(t, db, "0xseller", 10)
-
-	body, _ := json.Marshal(map[string]interface{}{
-		"listing_id":   listing.ID.String(),
-		"amount_to_buy": 2,
-		"tx_hash":      "0xfreshhash",
-	})
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/api/marketplace/buy", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 in dev mode, got %d: %s", w.Code, w.Body.String())
+	if n := countTransactions(t, db, listing.ID); n != 1 {
+		t.Errorf("expected still exactly 1 transaction (the seeded one), got %d", n)
 	}
 }
 
-func TestBuyCredits_RequiresVerification_Config_Blocks(t *testing.T) {
+func TestBuyCredits_RequiresPlatformWallet(t *testing.T) {
 	setupTestEnv(t)
-	// Strict mode with no platform wallet must fail closed.
+	// No PLATFORM_WALLET: the endpoint must refuse to settle rather than
+	// trusting the client's transaction hash.
 	t.Setenv("PLATFORM_WALLET", "")
-	t.Setenv("REQUIRE_CHAIN_VERIFICATION", "true")
+	t.Setenv("ETH_INR_RATE", "320000")
 
 	db := setupTestDB(t)
 	r := setupRouter(db)
 	r.POST("/api/marketplace/buy", BuyCredits)
 
 	listing := createTestListing(t, db, "0xseller", 10)
+	acceptPayment(t)
 
-	body, _ := json.Marshal(map[string]interface{}{
-		"listing_id":   listing.ID.String(),
-		"amount_to_buy": 1,
-		"tx_hash":      "0xanotherhash",
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":    listing.ID.String(),
+		"amount_to_buy": 2,
+		"tx_hash":       "0xfreshhash",
 	})
 
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/api/marketplace/buy", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 when PLATFORM_WALLET is missing, got %d: %s", w.Code, w.Body.String())
+	}
+	if n := countTransactions(t, db, listing.ID); n != 0 {
+		t.Errorf("expected no transaction to be created, got %d", n)
+	}
+}
+
+func TestBuyCredits_RequiresConfiguredRate(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("PLATFORM_WALLET", testPlatformWallet)
+	// No ETH_INR_RATE: the server cannot compute what the buyer owed, so it
+	// must fail closed.
+	t.Setenv("ETH_INR_RATE", "")
+
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/buy", BuyCredits)
+
+	listing := createTestListing(t, db, "0xseller", 10)
+	acceptPayment(t)
+
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":    listing.ID.String(),
+		"amount_to_buy": 2,
+		"tx_hash":       "0xfreshhash",
+	})
 
 	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500 when strict verification is misconfigured, got %d: %s", w.Code, w.Body.String())
+		t.Errorf("expected 500 when ETH_INR_RATE is missing, got %d: %s", w.Code, w.Body.String())
+	}
+	if n := countTransactions(t, db, listing.ID); n != 0 {
+		t.Errorf("expected no transaction to be created, got %d", n)
+	}
+}
+
+func TestBuyCredits_RejectsImplausibleRate(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("PLATFORM_WALLET", testPlatformWallet)
+	// A rate far below the accepted band must not make purchases cheap.
+	t.Setenv("ETH_INR_RATE", "1")
+
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/buy", BuyCredits)
+
+	listing := createTestListing(t, db, "0xseller", 10)
+	acceptPayment(t)
+
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":    listing.ID.String(),
+		"amount_to_buy": 2,
+		"tx_hash":       "0xfreshhash",
+	})
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for an implausible rate, got %d: %s", w.Code, w.Body.String())
+	}
+	if n := countTransactions(t, db, listing.ID); n != 0 {
+		t.Errorf("expected no transaction to be created, got %d", n)
+	}
+}
+
+func TestBuyCredits_RejectsCancelledListing(t *testing.T) {
+	setupTestEnv(t)
+	setupMarketplaceEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/buy", BuyCredits)
+
+	listing := createTestListing(t, db, "0xseller", 10)
+	// A confirmed tree cut cancels the listing; it must not remain buyable.
+	db.Model(&models.MarketplaceListing{}).Where("id = ?", listing.ID).Update("status", "CANCELLED")
+
+	acceptPayment(t)
+
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":    listing.ID.String(),
+		"amount_to_buy": 1,
+		"tx_hash":       "0xcancelledhash",
+	})
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for a cancelled listing, got %d: %s", w.Code, w.Body.String())
+	}
+	if n := countTransactions(t, db, listing.ID); n != 0 {
+		t.Errorf("expected no transaction for a cancelled listing, got %d", n)
+	}
+}
+
+func TestBuyCredits_RejectsExpiredListing(t *testing.T) {
+	setupTestEnv(t)
+	setupMarketplaceEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/buy", BuyCredits)
+
+	listing := createTestListing(t, db, "0xseller", 10)
+	db.Model(&models.MarketplaceListing{}).Where("id = ?", listing.ID).
+		Update("expires_at", time.Now().Add(-time.Hour))
+
+	acceptPayment(t)
+
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":    listing.ID.String(),
+		"amount_to_buy": 1,
+		"tx_hash":       "0xexpiredhash",
+	})
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for an expired listing, got %d: %s", w.Code, w.Body.String())
+	}
+	if n := countTransactions(t, db, listing.ID); n != 0 {
+		t.Errorf("expected no transaction for an expired listing, got %d", n)
+	}
+}
+
+func TestBuyCredits_RejectsUnderpaidPayment(t *testing.T) {
+	setupTestEnv(t)
+	setupMarketplaceEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/buy", BuyCredits)
+
+	listing := createTestListing(t, db, "0xseller", 10)
+
+	stubPaymentVerifier(t, func(txHash, toAddress, fromAddress string, minWei *big.Int) error {
+		return fmt.Errorf("underpaid: sent 1 wei, require at least %s wei", minWei)
+	})
+
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":    listing.ID.String(),
+		"amount_to_buy": 1,
+		"tx_hash":       "0xunderpaidhash",
+	})
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for an underpaid purchase, got %d: %s", w.Code, w.Body.String())
+	}
+	if n := countTransactions(t, db, listing.ID); n != 0 {
+		t.Errorf("expected no transaction for an underpaid purchase, got %d", n)
+	}
+}
+
+func TestBuyCredits_RejectsPaymentFromAnotherWallet(t *testing.T) {
+	setupTestEnv(t)
+	setupMarketplaceEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/buy", BuyCredits)
+
+	listing := createTestListing(t, db, "0xseller", 10)
+
+	stubPaymentVerifier(t, func(txHash, toAddress, fromAddress string, minWei *big.Int) error {
+		return fmt.Errorf("payment sender mismatch: expected %s, got 0xattacker", fromAddress)
+	})
+
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":    listing.ID.String(),
+		"amount_to_buy": 1,
+		"tx_hash":       "0xwrongsenderhash",
+	})
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 when the payment came from another wallet, got %d: %s", w.Code, w.Body.String())
+	}
+	if n := countTransactions(t, db, listing.ID); n != 0 {
+		t.Errorf("expected no transaction for a mismatched sender, got %d", n)
+	}
+}
+
+func TestBuyCredits_ComputesMinimumPaymentServerSide(t *testing.T) {
+	setupTestEnv(t)
+	setupMarketplaceEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/buy", BuyCredits)
+
+	listing := createTestListing(t, db, "0xseller", 10)
+	call := acceptPayment(t)
+
+	// The client also claims a tiny ETH amount and a huge exchange rate.
+	// Neither may influence what the server requires.
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":       listing.ID.String(),
+		"amount_to_buy":    2,
+		"tx_hash":          "0xserverpricehash",
+		"eth_amount":       0.0000001,
+		"eth_rate_at_time": 100000000,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if call.From != "0xtestwallet" {
+		t.Errorf("expected the buyer wallet to be checked as the payment sender, got %q", call.From)
+	}
+	if call.To != testPlatformWallet {
+		t.Errorf("expected the platform wallet to be the recipient, got %q", call.To)
+	}
+
+	// 2 credits x 700 INR = 1400 INR; at 320000 INR/ETH that is 0.004375 ETH.
+	expectedWei := services.EthToWei(1400.0 / 320000.0)
+	if call.MinWei == nil || call.MinWei.Cmp(expectedWei) != 0 {
+		t.Errorf("expected minimum payment %s wei, got %v", expectedWei, call.MinWei)
+	}
+
+	// The dust claim must not have been honoured.
+	if call.MinWei.Cmp(services.EthToWei(0.0000001)) <= 0 {
+		t.Errorf("the client-supplied dust amount was accepted as the minimum: %s wei", call.MinWei)
 	}
 }
 
 func TestBuyCredits_RejectsNonPositiveAmount(t *testing.T) {
 	setupTestEnv(t)
-	t.Setenv("PLATFORM_WALLET", "")
-	t.Setenv("REQUIRE_CHAIN_VERIFICATION", "")
+	setupMarketplaceEnv(t)
 
 	for _, amount := range []float64{0, -1, -0.5} {
 		t.Run(fmt.Sprintf("amount=%v", amount), func(t *testing.T) {
@@ -681,27 +952,21 @@ func TestBuyCredits_RejectsNonPositiveAmount(t *testing.T) {
 			r.POST("/api/marketplace/buy", BuyCredits)
 
 			listing := createTestListing(t, db, "0xseller", 10)
+			acceptPayment(t)
 
-			body, _ := json.Marshal(map[string]interface{}{
+			w := postBuy(t, r, map[string]interface{}{
 				"listing_id":    listing.ID.String(),
 				"amount_to_buy": amount,
 				"tx_hash":       "0xnonpositivehash",
 			})
-
-			w := httptest.NewRecorder()
-			req, _ := http.NewRequest("POST", "/api/marketplace/buy", bytes.NewBuffer(body))
-			req.Header.Set("Content-Type", "application/json")
-			r.ServeHTTP(w, req)
 
 			if w.Code != http.StatusBadRequest {
 				t.Errorf("expected 400 for amount %v, got %d: %s", amount, w.Code, w.Body.String())
 			}
 
 			// Invalid requests must not create transactions or change balances.
-			var txCount int64
-			db.Model(&models.MarketplaceTransaction{}).Where("listing_id = ?", listing.ID).Count(&txCount)
-			if txCount != 0 {
-				t.Errorf("expected no transaction for amount %v, got %d", amount, txCount)
+			if n := countTransactions(t, db, listing.ID); n != 0 {
+				t.Errorf("expected no transaction for amount %v, got %d", amount, n)
 			}
 
 			var reloaded models.MarketplaceListing
@@ -717,58 +982,46 @@ func TestBuyCredits_RejectsNonPositiveAmount(t *testing.T) {
 
 func TestBuyCredits_RejectsAmountExceedingAvailability(t *testing.T) {
 	setupTestEnv(t)
-	t.Setenv("PLATFORM_WALLET", "")
-	t.Setenv("REQUIRE_CHAIN_VERIFICATION", "")
+	setupMarketplaceEnv(t)
 
 	db := setupTestDB(t)
 	r := setupRouter(db)
 	r.POST("/api/marketplace/buy", BuyCredits)
 
 	listing := createTestListing(t, db, "0xseller", 10)
+	acceptPayment(t)
 
-	body, _ := json.Marshal(map[string]interface{}{
+	w := postBuy(t, r, map[string]interface{}{
 		"listing_id":    listing.ID.String(),
 		"amount_to_buy": 11,
 		"tx_hash":       "0xoveramount",
 	})
 
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/api/marketplace/buy", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for over-availability, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var txCount int64
-	db.Model(&models.MarketplaceTransaction{}).Where("listing_id = ?", listing.ID).Count(&txCount)
-	if txCount != 0 {
-		t.Errorf("expected no transaction for over-availability, got %d", txCount)
+	if n := countTransactions(t, db, listing.ID); n != 0 {
+		t.Errorf("expected no transaction for over-availability, got %d", n)
 	}
 }
 
 func TestBuyCredits_ValidPurchaseUpdatesListing(t *testing.T) {
 	setupTestEnv(t)
-	t.Setenv("PLATFORM_WALLET", "")
-	t.Setenv("REQUIRE_CHAIN_VERIFICATION", "")
+	setupMarketplaceEnv(t)
 
 	db := setupTestDB(t)
 	r := setupRouter(db)
 	r.POST("/api/marketplace/buy", BuyCredits)
 
 	listing := createTestListing(t, db, "0xseller", 10)
+	acceptPayment(t)
 
-	body, _ := json.Marshal(map[string]interface{}{
+	w := postBuy(t, r, map[string]interface{}{
 		"listing_id":    listing.ID.String(),
 		"amount_to_buy": 4,
 		"tx_hash":       "0xvalidhash",
 	})
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/api/marketplace/buy", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for valid purchase, got %d: %s", w.Code, w.Body.String())
@@ -785,10 +1038,319 @@ func TestBuyCredits_ValidPurchaseUpdatesListing(t *testing.T) {
 		t.Errorf("expected status PARTIAL, got %s", reloaded.Status)
 	}
 
-	var txCount int64
-	db.Model(&models.MarketplaceTransaction{}).Where("listing_id = ?", listing.ID).Count(&txCount)
-	if txCount != 1 {
-		t.Errorf("expected 1 transaction for valid purchase, got %d", txCount)
+	if n := countTransactions(t, db, listing.ID); n != 1 {
+		t.Errorf("expected 1 transaction for valid purchase, got %d", n)
+	}
+}
+
+func TestBuyCredits_PartiallySoldListingRemainsBuyable(t *testing.T) {
+	setupTestEnv(t)
+	setupMarketplaceEnv(t)
+
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/buy", BuyCredits)
+
+	listing := createTestListing(t, db, "0xseller", 10)
+	// A listing that has already sold part of its credits is still open.
+	db.Model(&models.MarketplaceListing{}).Where("id = ?", listing.ID).
+		Updates(map[string]interface{}{"credits_sold": 3, "status": "PARTIAL"})
+
+	acceptPayment(t)
+
+	w := postBuy(t, r, map[string]interface{}{
+		"listing_id":    listing.ID.String(),
+		"amount_to_buy": 2,
+		"tx_hash":       "0xpartialhash",
+	})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for a partially sold listing, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// ─────────────────────────────────────────────────
+// Marketplace listing tests
+// ─────────────────────────────────────────────────
+
+func postCreateListing(t *testing.T, r *gin.Engine, body map[string]interface{}) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, _ := json.Marshal(body)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/marketplace/listings", bytes.NewBuffer(raw))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func createListableTree(t *testing.T, db *gorm.DB, wallet string, available float64) models.Tree {
+	t.Helper()
+	user := createTestUser(t, db, wallet, "user")
+	tree := models.Tree{
+		ID:                   uuid.New(),
+		TreeID:               fmt.Sprintf("TREE-%s", uuid.New().String()[:8]),
+		PlanterID:            user.ID,
+		Species:              "oak",
+		OwnerWallet:          wallet,
+		Latitude:             28.6139,
+		Longitude:            77.2090,
+		Status:               "VERIFIED",
+		CarbonAbsorptionRate: 20.0,
+		PlantedAt:            time.Now().AddDate(0, -3, 0),
+		HealthStatus:         "Healthy",
+		CreditsAvailable:     available,
+	}
+	if err := db.Create(&tree).Error; err != nil {
+		t.Fatal("failed to create tree:", err)
+	}
+	return tree
+}
+
+func TestCreateMarketplaceListing_RejectsNonPositiveCredits(t *testing.T) {
+	setupTestEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/listings", CreateMarketplaceListing)
+
+	tree := createListableTree(t, db, "0xtestwallet", 10)
+
+	for _, amount := range []float64{0, -1, -0.5} {
+		w := postCreateListing(t, r, map[string]interface{}{
+			"tree_id":          tree.TreeID,
+			"credits_to_sell":  amount,
+			"price_per_credit": 700,
+			"duration_days":    14,
+		})
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 for credits_to_sell=%v, got %d: %s", amount, w.Code, w.Body.String())
+		}
+	}
+
+	// A negative amount must never inflate the seller's balance.
+	var reloaded models.Tree
+	db.First(&reloaded, "id = ?", tree.ID)
+	if reloaded.CreditsAvailable != 10 {
+		t.Errorf("expected credits_available to stay 10, got %v", reloaded.CreditsAvailable)
+	}
+	var listings int64
+	db.Model(&models.MarketplaceListing{}).Count(&listings)
+	if listings != 0 {
+		t.Errorf("expected no listings to be created, got %d", listings)
+	}
+}
+
+func TestCreateMarketplaceListing_RejectsExceedingAvailable(t *testing.T) {
+	setupTestEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/listings", CreateMarketplaceListing)
+
+	tree := createListableTree(t, db, "0xtestwallet", 10)
+
+	w := postCreateListing(t, r, map[string]interface{}{
+		"tree_id":          tree.TreeID,
+		"credits_to_sell":  11,
+		"price_per_credit": 700,
+		"duration_days":    14,
+	})
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for exceeding available credits, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var reloaded models.Tree
+	db.First(&reloaded, "id = ?", tree.ID)
+	if reloaded.CreditsAvailable != 10 {
+		t.Errorf("expected credits_available to stay 10, got %v", reloaded.CreditsAvailable)
+	}
+}
+
+func TestCreateMarketplaceListing_RejectsSellerWithOpenDebt(t *testing.T) {
+	setupTestEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/listings", CreateMarketplaceListing)
+
+	tree := createListableTree(t, db, "0xtestwallet", 10)
+	db.Create(&models.ReplantationDebt{
+		ID:             uuid.New(),
+		OriginalTreeID: "TREE-CUT-1",
+		OwnerWallet:    "0xtestwallet",
+		TreesNeeded:    3,
+		Status:         "PENDING",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	})
+
+	w := postCreateListing(t, r, map[string]interface{}{
+		"tree_id":          tree.TreeID,
+		"credits_to_sell":  1,
+		"price_per_credit": 700,
+		"duration_days":    14,
+	})
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for a seller with an open debt, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var listings int64
+	db.Model(&models.MarketplaceListing{}).Count(&listings)
+	if listings != 0 {
+		t.Errorf("expected no listing to be created while in debt, got %d", listings)
+	}
+}
+
+func TestCreateMarketplaceListing_AllowsSellerWithClearedDebt(t *testing.T) {
+	setupTestEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/listings", CreateMarketplaceListing)
+
+	tree := createListableTree(t, db, "0xtestwallet", 10)
+	db.Create(&models.ReplantationDebt{
+		ID:             uuid.New(),
+		OriginalTreeID: "TREE-CUT-1",
+		OwnerWallet:    "0xtestwallet",
+		TreesNeeded:    3,
+		TreesVerified:  3,
+		Status:         "CLEARED",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	})
+
+	w := postCreateListing(t, r, map[string]interface{}{
+		"tree_id":          tree.TreeID,
+		"credits_to_sell":  2,
+		"price_per_credit": 700,
+		"duration_days":    14,
+	})
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for a seller whose debt is cleared, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateMarketplaceListing_ValidListingMovesCredits(t *testing.T) {
+	setupTestEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.POST("/api/marketplace/listings", CreateMarketplaceListing)
+
+	tree := createListableTree(t, db, "0xtestwallet", 10)
+
+	w := postCreateListing(t, r, map[string]interface{}{
+		"tree_id":          tree.TreeID,
+		"credits_to_sell":  4,
+		"price_per_credit": 700,
+		"duration_days":    14,
+	})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var reloaded models.Tree
+	db.First(&reloaded, "id = ?", tree.ID)
+	if reloaded.CreditsAvailable != 6 {
+		t.Errorf("expected credits_available 6, got %v", reloaded.CreditsAvailable)
+	}
+	if reloaded.CreditsListed != 4 {
+		t.Errorf("expected credits_listed 4, got %v", reloaded.CreditsListed)
+	}
+}
+
+func TestBuyCredits_UniqueIndexRejectsDuplicateTxHashAtDatabaseLevel(t *testing.T) {
+	setupTestEnv(t)
+	setupMarketplaceEnv(t)
+	db := setupTestDB(t)
+
+	// The replay guard must be enforced by the database, not by application
+	// logic, so that two concurrent requests carrying the same hash cannot
+	// both succeed.
+	var indexSQL string
+	if err := db.Raw(`SELECT sql FROM sqlite_master WHERE type='index' AND name='uni_marketplace_transactions_tx_hash'`).
+		Scan(&indexSQL).Error; err != nil {
+		t.Fatalf("failed to look up the index: %v", err)
+	}
+	if indexSQL == "" {
+		t.Fatal("expected a unique index on marketplace_transactions.tx_hash to exist")
+	}
+	if !strings.Contains(indexSQL, "UNIQUE") {
+		t.Errorf("expected the index to be UNIQUE, got: %s", indexSQL)
+	}
+
+	// And the constraint must actually reject a duplicate hash.
+	base := models.MarketplaceTransaction{
+		ID:            uuid.New(),
+		ListingID:     uuid.New(),
+		BuyerWallet:   "0xbuyer",
+		SellerWallet:  "0xseller",
+		TreeID:        "TREE-X",
+		CreditsAmount: 1,
+		TxHash:        "0xreplayed",
+		Status:        "CONFIRMED",
+		CreatedAt:     time.Now(),
+	}
+	if err := db.Create(&base).Error; err != nil {
+		t.Fatalf("failed to insert the first transaction: %v", err)
+	}
+
+	dup := base
+	dup.ID = uuid.New()
+	err := db.Create(&dup).Error
+	if err == nil {
+		t.Fatal("expected the duplicate tx_hash to be rejected by the database")
+	}
+	if !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Errorf("expected gorm.ErrDuplicatedKey, got %v", err)
+	}
+}
+
+func TestGetMarketplacePaymentConfig_PublishesServerSideRate(t *testing.T) {
+	setupTestEnv(t)
+	setupMarketplaceEnv(t)
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.GET("/api/marketplace/payment-config", GetMarketplacePaymentConfig)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/marketplace/payment-config", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &cfg); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if cfg["eth_inr_rate"] != float64(320000) {
+		t.Errorf("expected eth_inr_rate 320000, got %v", cfg["eth_inr_rate"])
+	}
+	if cfg["platform_wallet"] != testPlatformWallet {
+		t.Errorf("expected platform_wallet %s, got %v", testPlatformWallet, cfg["platform_wallet"])
+	}
+	if cfg["configured"] != true {
+		t.Errorf("expected configured true, got %v", cfg["configured"])
+	}
+}
+
+func TestGetMarketplacePaymentConfig_ReportsUnconfiguredPricing(t *testing.T) {
+	setupTestEnv(t)
+	t.Setenv("PLATFORM_WALLET", testPlatformWallet)
+	t.Setenv("ETH_INR_RATE", "")
+
+	db := setupTestDB(t)
+	r := setupRouter(db)
+	r.GET("/api/marketplace/payment-config", GetMarketplacePaymentConfig)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/marketplace/payment-config", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 when pricing is unconfigured, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

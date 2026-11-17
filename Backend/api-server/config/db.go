@@ -44,11 +44,17 @@ func InitDB() {
 
 	database, err := gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
+		// TranslateError maps native constraint violations (PostgreSQL
+		// "duplicate key", SQLite "UNIQUE constraint failed") onto
+		// gorm.ErrDuplicatedKey so handlers can distinguish a replayed
+		// marketplace transaction from a generic write failure.
+		TranslateError: true,
 	})
 	if err != nil {
 		log.Println("WARNING: Failed to connect to Postgres database, falling back to local SQLite (ecochain.db):", err)
 		database, err = gorm.Open(sqlite.Open("ecochain.db"), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Warn),
+			Logger:         logger.Default.LogMode(logger.Warn),
+			TranslateError: true,
 		})
 		if err != nil {
 			log.Fatal("Failed to connect to both Postgres and SQLite databases:", err)

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import API_URL from "../../utils/config.js";
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, TreePine, Info, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
@@ -11,7 +11,7 @@ export default function CreateListingModal({ onClose, onSuccess }) {
   const [selectedTree, setSelectedTree] = useState(null);
   const [amount, setAmount] = useState('');
   const [price, setPrice] = useState('700');
-  const [duration, setDuration] = useState('14');
+  const [duration] = useState('14');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [step, setStep] = useState('input'); // input | success

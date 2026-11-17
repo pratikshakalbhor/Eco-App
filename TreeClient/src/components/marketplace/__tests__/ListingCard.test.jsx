@@ -9,8 +9,8 @@ vi.mock('framer-motion', () => ({
 }));
 
 function filterMotionProps(props) {
-  const { initial, animate, transition, whileHover, ...rest } = props;
-  return rest;
+  const ignored = new Set(['initial', 'animate', 'transition', 'whileHover']);
+  return Object.fromEntries(Object.entries(props).filter(([key]) => !ignored.has(key)));
 }
 
 describe('ListingCard Component', () => {

@@ -23,7 +23,7 @@ export default function Marketplace() {
   const [activeBuy, setActiveBuy] = useState(null);
   const [isListingModalOpen, setIsListingModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [speciesFilter, setSpeciesFilter] = useState('All');
+  const [speciesFilter] = useState('All');
   
   const { user } = useAuth();
   const queryClient = useQueryClient();

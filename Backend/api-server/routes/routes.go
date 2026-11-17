@@ -81,6 +81,7 @@ func SetupRoutes(r *gin.Engine) {
 			// ── Marketplace ──────────────────────────────
 			protected.GET("/marketplace/listings", marketplaceLimiter.Handler(), controllers.GetMarketplaceListings)
 			protected.POST("/marketplace/listings", marketplaceLimiter.Handler(), controllers.CreateMarketplaceListing)
+			protected.GET("/marketplace/payment-config", marketplaceLimiter.Handler(), controllers.GetMarketplacePaymentConfig)
 			protected.POST("/marketplace/buy", marketplaceLimiter.Handler(), controllers.BuyCredits)
 			protected.GET("/marketplace/transactions", marketplaceLimiter.Handler(), controllers.GetTransactions)
 			protected.GET("/marketplace/stats", marketplaceLimiter.Handler(), controllers.GetMarketplaceStats)

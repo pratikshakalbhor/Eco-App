@@ -201,9 +201,16 @@ type MarketplaceTransaction struct {
 	SellerReceivedINR float64   `gorm:"type:decimal(12,2);not null" json:"seller_received_inr"`
 	EthAmount         float64   `gorm:"type:decimal(18,8)" json:"eth_amount"`
 	EthRateAtTime     float64   `gorm:"type:decimal(12,2)" json:"eth_rate_at_time"`
-	TxHash            string    `json:"tx_hash"`
-	Status            string    `gorm:"default:'CONFIRMED'" json:"status"` // PENDING/CONFIRMED/FAILED
-	CreatedAt         time.Time `json:"created_at"`
+	// TxHash carries the on-chain transaction that settled the purchase. The
+	// unique index is what makes marketplace replay protection race-free: the
+	// transaction row is inserted first and a duplicate hash is rejected by
+	// the database, not by a racy pre-insert COUNT.
+	//
+	// The index is partial (WHERE tx_hash <> '') so legacy rows that carry no
+	// hash do not collide with each other.
+	TxHash    string    `gorm:"uniqueIndex:uni_marketplace_transactions_tx_hash,where:tx_hash <> ''" json:"tx_hash"`
+	Status    string    `gorm:"default:'CONFIRMED'" json:"status"` // PENDING/CONFIRMED/FAILED
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type CreditLedger struct {
